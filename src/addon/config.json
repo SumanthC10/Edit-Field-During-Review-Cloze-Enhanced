@@ -12,6 +12,13 @@
     "cloze-alt": "Ctrl + Shift + Alt + C",
     "image-resize": "Alt + S"
   },
+  "cloze_tools": {
+    "shortcuts": {
+      "remove_single": "Ctrl + Shift + R",
+      "remove_all": "Ctrl + Shift + Alt + D",
+      "remove_same_number": "Ctrl + Shift + Alt + R"
+    }
+  },
   "special_formatting": {
     "fontcolor": {
       "enabled": true,
@@ -73,7 +80,7 @@
     "justifyRight": {
       "enabled": false,
       "command": "justifyRight",
-      "shortcut": "Ctrl + Shift + Alt + R",
+      "shortcut": "Ctrl + Shift + Alt + E",
       "arg": null
     },
     "orderedlist": {

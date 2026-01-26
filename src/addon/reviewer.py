@@ -40,7 +40,8 @@ def myRevHtml() -> str:
 
     # config should not have any single quote values
     js = "EFDRC.registerConfig('{}');".format(conf.to_json())
-    js += "EFDRC.setupReviewer()"
+    js += "EFDRC.setupReviewer();"
+    js += "EFDRC.setupClozeTools();"
     return f"<script>{js}</script>"
 
 
@@ -248,7 +249,7 @@ def on_webview(web_content: aqt.webview.WebContent, context: Optional[Any]) -> N
     if isinstance(context, Reviewer) or isinstance(context, MultiCardPreviewer):
         web_content.body += myRevHtml()
         web_content.body += f'<script type="module" src="{url_from_fname("editor/editor.js")}"></script>'
-        js_contents = ["global_card.js", "resize.js"]
+        js_contents = ["global_card.js", "resize.js", "cloze-tools.js"]
         for file_name in js_contents:
             web_content.js.append(url_from_fname(file_name))
         jquery_ui = "js/vendor/jquery-ui.min.js"
