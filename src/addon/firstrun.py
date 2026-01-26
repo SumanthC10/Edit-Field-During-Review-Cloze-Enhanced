@@ -118,16 +118,25 @@ remove_undo()
 def initial_tutorial() -> None:
     tutorial = "<br>".join(
         [
-            "<center><h3>Edit Field During Review (Cloze)",
+            "<center><h3>Edit Field During Review Cloze Enhanced",
             "How to Use</h3></center>"
             "<h4>Initial Setup</h4>"
             "1. Open the add-on config and go to the <i>Fields</i> tab.",
             "2. For each note type, <i>check</i> the fields you want editable.",
             "3. Remember to do this whenever you add or modify a note type!",
             "4. And it's done! Now you can <b>Ctrl + Click</b> on the field content to edit it.",
+            "<h4>Cloze Tools Shortcuts</h4>"
+            "<b>Removal:</b>",
+            "• <b>Cmd+Shift+R</b> - Remove cloze at cursor/selection",
+            "• <b>Cmd+Shift+U</b> - Remove ALL clozes in field",
+            "• <b>Cmd+Shift+Alt+R</b> - Remove clozes with same number",
+            "<b>Numbering:</b>",
+            "• <b>Cmd+Shift+Alt+J</b> - Increment cloze number",
+            "• <b>Cmd+Shift+Alt+K</b> - Decrement cloze number",
+            "• <b>Cmd+Shift+Alt+N</b> - Renumber cloze (then press 1-9)",
         ]
     )
-    showText(tutorial, type="html", title="Add-on Tutorial")
+    showText(tutorial, type="html", title="Edit Field During Review Cloze Enhanced")
 
 
 if version == "-1.-1":

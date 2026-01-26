@@ -1,6 +1,6 @@
 /**
  * Cloze Tools for EFDRC
- * Provides cloze manipulation features: remove single, remove all, remove same number
+ * Provides cloze manipulation features: removal and numbering
  */
 (function () {
   const EFDRC = window.EFDRC
@@ -39,7 +39,6 @@
     if (cursorPos < 0) return null
 
     const html = elem.innerHTML
-    const text = elem.textContent || ''
 
     // Find all clozes and their positions in both HTML and text
     let match
@@ -56,9 +55,12 @@
       temp.innerHTML = htmlBefore
       const textStart = temp.textContent.length
 
-      // The cloze content in text is just the content (group 2)
-      const clozeContent = match[2]
-      const textEnd = textStart + clozeContent.length
+      // Get the text length of the FULL cloze markup (not just content)
+      // This handles cases where cloze content might have HTML tags
+      const clozeTemp = document.createElement('div')
+      clozeTemp.innerHTML = match[0]
+      const clozeTextLength = clozeTemp.textContent.length
+      const textEnd = textStart + clozeTextLength
 
       // Check if cursor is within this cloze's text range
       if (cursorPos >= textStart && cursorPos <= textEnd) {
@@ -156,14 +158,16 @@
 
   /**
    * Remove ALL cloze markup from the entire field
-   * Ctrl+Shift+D
    */
   function removeAllClozesInField(event, elem) {
+    const cursorPos = getCursorTextOffset(elem)
+
+    // Replace all clozes - use same pattern as removeClozesOfSameNumber
     const html = elem.innerHTML
-    const newHtml = html.replace(CLOZE_REGEX, '$2')
+    const regex = /\{\{c\d+::(.*?)(?:::(.*?))?\}\}/g
+    const newHtml = html.replace(regex, '$1')
 
     if (newHtml !== html) {
-      const cursorPos = getCursorTextOffset(elem)
       elem.innerHTML = newHtml
       // Restore cursor approximately
       if (cursorPos >= 0) {
@@ -260,6 +264,172 @@
   }
 
   /**
+   * Change the number of a cloze
+   * @param {HTMLElement} elem - The editable field element
+   * @param {Object} cloze - The cloze object from getClozeAtCursor
+   * @param {number} newNumber - The new cloze number
+   */
+  function changeClozeNumber(elem, cloze, newNumber) {
+    const newCloze = cloze.hint
+      ? `{{c${newNumber}::${cloze.content}::${cloze.hint}}}`
+      : `{{c${newNumber}::${cloze.content}}}`
+
+    const html = elem.innerHTML
+    const before = html.substring(0, cloze.htmlStart)
+    const after = html.substring(cloze.htmlEnd)
+    elem.innerHTML = before + newCloze + after
+
+    // Restore cursor position
+    placeCursorAtOffset(elem, cloze.textStart)
+    return true
+  }
+
+  /**
+   * Increment cloze number at cursor
+   */
+  function incrementClozeNumber(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    changeClozeNumber(elem, cloze, cloze.number + 1)
+  }
+
+  /**
+   * Decrement cloze number at cursor (minimum 1)
+   */
+  function decrementClozeNumber(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    const newNumber = Math.max(1, cloze.number - 1)
+    if (newNumber !== cloze.number) {
+      changeClozeNumber(elem, cloze, newNumber)
+    }
+  }
+
+  // State for renumber key sequence
+  let renumberPending = false
+  let renumberElement = null
+  let renumberCloze = null
+  let renumberTimeout = null
+  let renumberPopup = null
+
+  /**
+   * Create and show the renumber popup
+   */
+  function showRenumberPopup() {
+    hideRenumberPopup()
+
+    renumberPopup = document.createElement('div')
+    renumberPopup.id = 'efdrc-renumber-popup'
+    renumberPopup.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #333;
+        color: #fff;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        z-index: 99999;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        text-align: center;
+      ">
+        <div style="font-weight: bold; margin-bottom: 8px;">Renumber Cloze</div>
+        <div style="color: #aaa;">Press <strong style="color: #fff;">1-9</strong> to set number</div>
+        <div style="
+          display: flex;
+          justify-content: center;
+          gap: 6px;
+          margin-top: 12px;
+        ">
+          ${[1,2,3,4,5,6,7,8,9].map(n => `
+            <span style="
+              width: 28px;
+              height: 28px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #555;
+              border-radius: 4px;
+              font-weight: bold;
+            ">${n}</span>
+          `).join('')}
+        </div>
+      </div>
+    `
+    document.body.appendChild(renumberPopup)
+  }
+
+  /**
+   * Hide the renumber popup
+   */
+  function hideRenumberPopup() {
+    if (renumberPopup) {
+      renumberPopup.remove()
+      renumberPopup = null
+    }
+  }
+
+  /**
+   * Start renumber sequence - waits for 1-9 key press
+   */
+  function startRenumberSequence(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return  // No cloze at cursor, don't start
+
+    renumberPending = true
+    renumberElement = elem
+    renumberCloze = cloze
+
+    showRenumberPopup()
+
+    // Cancel after 3 seconds if no number pressed
+    clearTimeout(renumberTimeout)
+    renumberTimeout = setTimeout(() => {
+      renumberPending = false
+      renumberElement = null
+      renumberCloze = null
+      hideRenumberPopup()
+    }, 3000)
+  }
+
+  /**
+   * Handle number key press during renumber sequence
+   * Returns true if handled, false otherwise
+   */
+  function handleRenumberKey(event) {
+    if (!renumberPending || !renumberElement || !renumberCloze) return false
+
+    const key = event.key
+    if (key >= '1' && key <= '9') {
+      event.preventDefault()
+      event.stopPropagation()
+
+      const newNumber = parseInt(key, 10)
+      changeClozeNumber(renumberElement, renumberCloze, newNumber)
+
+      // Reset state
+      clearTimeout(renumberTimeout)
+      renumberPending = false
+      renumberElement = null
+      renumberCloze = null
+      hideRenumberPopup()
+      return true
+    }
+
+    // Any other key cancels the sequence
+    renumberPending = false
+    renumberElement = null
+    renumberCloze = null
+    clearTimeout(renumberTimeout)
+    hideRenumberPopup()
+    return false
+  }
+
+  /**
    * Register cloze tool shortcuts from config
    */
   EFDRC.setupClozeTools = function () {
@@ -277,7 +447,27 @@
     if (shortcuts.remove_same_number) {
       EFDRC.registerShortcut(shortcuts.remove_same_number, removeClozesOfSameNumber)
     }
+
+    // Numbering shortcuts
+    if (shortcuts.increment) {
+      EFDRC.registerShortcut(shortcuts.increment, incrementClozeNumber)
+    }
+
+    if (shortcuts.decrement) {
+      EFDRC.registerShortcut(shortcuts.decrement, decrementClozeNumber)
+    }
+
+    if (shortcuts.renumber) {
+      EFDRC.registerShortcut(shortcuts.renumber, startRenumberSequence)
+    }
   }
+
+  // Listen for number keys during renumber sequence
+  document.addEventListener('keydown', (event) => {
+    if (renumberPending) {
+      handleRenumberKey(event)
+    }
+  }, true)
 
   // Expose helper functions for potential future use
   EFDRC.clozeTools = {
@@ -286,6 +476,10 @@
     stripClozeMarkup,
     removeClozeAtCursorOrSelection,
     removeAllClozesInField,
-    removeClozesOfSameNumber
+    removeClozesOfSameNumber,
+    changeClozeNumber,
+    incrementClozeNumber,
+    decrementClozeNumber,
+    startRenumberSequence
   }
 })()

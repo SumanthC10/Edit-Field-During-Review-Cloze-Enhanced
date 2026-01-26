@@ -1,6 +1,21 @@
 [data-efdrcfield][contenteditable="true"].EFDRC-outline:focus {
   outline: 1px solid #308cc6;
 }
+/* Disable clicks and hover on all child elements while editing */
+[data-efdrcfield][contenteditable="true"]:focus * {
+  pointer-events: none !important;
+}
+[data-efdrcfield][contenteditable="true"]:focus {
+  pointer-events: auto !important;
+  cursor: text !important;
+}
+/* Hide Amboss underlines while editing */
+[data-efdrcfield][contenteditable="true"]:focus * {
+  border-bottom: none !important;
+  text-decoration: none !important;
+  background-image: none !important;
+  color: inherit !important;
+}
 /* placeholder style */
 [data-efdrcfield][contenteditable="true"][data-placeholder].EFDRC-ctrl:empty:before {
   content: attr(data-placeholder);
