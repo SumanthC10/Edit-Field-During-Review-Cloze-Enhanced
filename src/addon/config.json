@@ -32,8 +32,11 @@
       "jump_next_cloze": "Ctrl + ]",
       "jump_prev_cloze": "Ctrl + [",
       "jump_to_beginning": "Ctrl + Shift + Alt + ,",
-      "jump_to_end": "Ctrl + Shift + Alt + ."
-    }
+      "jump_to_end": "Ctrl + Shift + Alt + .",
+      "toggle_overlay": "Ctrl + Shift + Alt + O"
+    },
+    "auto_show_overlay": false,
+    "max_cloze_length": 50
   },
   "special_formatting": {
     "fontcolor": {

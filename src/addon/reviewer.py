@@ -272,3 +272,38 @@ gui_hooks.webview_will_set_content.append(on_webview)
 gui_hooks.webview_did_receive_js_message.append(handle_pycmd_message)
 gui_hooks.card_will_show.append(serve_card)
 anki.hooks.field_filter.append(edit_filter)
+
+
+# ============ MENU ITEMS ============
+
+from aqt.qt import QAction
+
+overlay_action = None
+
+def toggle_cloze_overlay(checked):
+    """Toggle the cloze info overlay in the reviewer"""
+    # Save to config
+    conf.set("cloze_tools.auto_show_overlay", checked)
+    conf.save()
+
+    # Update JS state
+    if mw.reviewer and mw.reviewer.web:
+        if checked:
+            mw.reviewer.web.eval("if (EFDRC && EFDRC.clozeTools) { EFDRC.clozeTools.toggleClozeOverlay(null, document.activeElement); }")
+        else:
+            mw.reviewer.web.eval("if (EFDRC && EFDRC.clozeTools) { EFDRC.clozeTools.hideClozeOverlay(); }")
+
+def setup_menu():
+    """Add menu items to Tools menu"""
+    global overlay_action
+    overlay_action = QAction("Show Cloze Info Overlay", mw)
+    overlay_action.setShortcut("Ctrl+Shift+Alt+O")
+    overlay_action.setCheckable(True)
+    # Load saved state from config
+    auto_show = conf.get("cloze_tools", {}).get("auto_show_overlay", False)
+    overlay_action.setChecked(auto_show)
+    overlay_action.triggered.connect(toggle_cloze_overlay)
+    mw.form.menuTools.addAction(overlay_action)
+
+# Setup menu when Anki loads
+setup_menu()

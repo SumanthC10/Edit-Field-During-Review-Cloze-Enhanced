@@ -730,6 +730,180 @@
     placeCursorAtOffset(elem, len)
   }
 
+  // ============ VISUAL FEATURES ============
+
+  // Color palette for cloze numbers
+  const CLOZE_COLORS = {
+    1: '#4fc3f7', // blue
+    2: '#81c784', // green
+    3: '#e57373', // red
+    4: '#ffb74d', // orange
+    5: '#ba68c8', // purple
+    6: '#4dd0e1', // cyan
+    7: '#fff176', // yellow
+    8: '#f06292', // pink
+    9: '#a1887f'  // brown
+  }
+
+  function getClozeColor(num) {
+    return CLOZE_COLORS[num] || '#90a4ae' // default gray
+  }
+
+  // Overlay state
+  let clozeOverlay = null
+  let clozeOverlayEnabled = false // Will be set from config in setupClozeTools
+  let clozeOverlayFieldId = null
+
+  /**
+   * Create or update the cloze info overlay
+   */
+  function showClozeOverlay(elem) {
+    if (!clozeOverlayEnabled) return
+
+    const fieldId = elem.getAttribute('data-EFDRCfield')
+    clozeOverlayFieldId = fieldId
+
+    if (!clozeOverlay) {
+      clozeOverlay = document.createElement('div')
+      clozeOverlay.id = 'efdrc-cloze-overlay'
+      clozeOverlay.style.cssText = `
+        position: fixed;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(30, 30, 30, 0.9);
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 16px;
+        font-size: 12px;
+        z-index: 99998;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      `
+      document.body.appendChild(clozeOverlay)
+    }
+
+    updateClozeOverlay(elem)
+  }
+
+  function hideClozeOverlay() {
+    if (clozeOverlay) {
+      clozeOverlay.remove()
+      clozeOverlay = null
+    }
+    clozeOverlayFieldId = null
+  }
+
+  function updateClozeOverlay(elem) {
+    if (!clozeOverlay || !clozeOverlayEnabled) return
+
+    const allClozes = getAllClozes(elem)
+    const clozeAtCursor = getClozeAtCursor(elem)
+
+    // Count clozes by number
+    const counts = {}
+    let hasEmpty = false
+    let hasLong = false
+    const maxLength = EFDRC.CONF?.cloze_tools?.max_cloze_length || 50
+
+    for (const cloze of allClozes) {
+      counts[cloze.number] = (counts[cloze.number] || 0) + 1
+
+      const temp = document.createElement('div')
+      temp.innerHTML = cloze.content
+      const plainContent = (temp.textContent || '').trim()
+      if (!plainContent) hasEmpty = true
+      if (plainContent.length > maxLength) hasLong = true
+    }
+
+    // Build compact display - just colored badges
+    let html = ''
+    const sortedNums = Object.keys(counts).map(n => parseInt(n)).sort((a, b) => a - b)
+
+    for (const num of sortedNums) {
+      const color = getClozeColor(num)
+      const isActive = clozeAtCursor && clozeAtCursor.number === num
+      const style = isActive
+        ? `background: ${color}; color: #000; font-weight: 700;`
+        : `background: rgba(255,255,255,0.1); color: ${color}; font-weight: 600;`
+      html += `<span style="${style} padding: 2px 8px; border-radius: 10px; font-size: 12px;">c${num}</span>`
+    }
+
+    // Only show warnings if they exist
+    if (hasEmpty) {
+      html += `<span style="color: #e57373; font-size: 11px;">⚠ Empty</span>`
+    }
+    if (hasLong) {
+      html += `<span style="color: #ffb74d; font-size: 11px;">⚠ Long</span>`
+    }
+
+    // If no clozes at all
+    if (sortedNums.length === 0) {
+      html = '<span style="color: #666; font-size: 12px;">No clozes</span>'
+    }
+
+    clozeOverlay.innerHTML = html
+  }
+
+  /**
+   * Toggle cloze overlay visibility
+   */
+  function toggleClozeOverlay(event, elem) {
+    clozeOverlayEnabled = !clozeOverlayEnabled
+
+    // Find active field if not provided
+    if (!elem || !elem.hasAttribute || !elem.hasAttribute('data-EFDRCfield')) {
+      elem = document.querySelector('[data-EFDRCfield][contenteditable="true"]:focus')
+      if (!elem) {
+        elem = document.querySelector('[data-EFDRCfield]')
+      }
+    }
+
+    if (clozeOverlayEnabled && elem) {
+      showClozeOverlay(elem)
+    } else {
+      hideClozeOverlay()
+    }
+  }
+
+  /**
+   * Update overlay on cursor movement (called from selection change)
+   */
+  function onSelectionChange() {
+    if (!clozeOverlayEnabled || !clozeOverlayFieldId) return
+
+    const elem = document.querySelector(`[data-EFDRCfield="${clozeOverlayFieldId}"]`)
+    if (elem && document.activeElement === elem) {
+      updateClozeOverlay(elem)
+    }
+  }
+
+  // Listen for selection changes to update active cloze indicator
+  document.addEventListener('selectionchange', onSelectionChange)
+
+
+
+  /**
+   * Setup visual features when field gains focus
+   */
+  function setupVisualFeatures(elem) {
+    const autoShow = EFDRC.CONF?.cloze_tools?.auto_show_overlay
+    if (autoShow || clozeOverlayEnabled) {
+      clozeOverlayEnabled = true
+      showClozeOverlay(elem)
+    }
+  }
+
+  /**
+   * Cleanup visual features when field loses focus
+   */
+  function cleanupVisualFeatures(elem) {
+    hideClozeOverlay()
+  }
+
   // ============ CARD NAVIGATION ============
 
   /**
@@ -1012,6 +1186,9 @@
    * Register cloze tool shortcuts from config
    */
   EFDRC.setupClozeTools = function () {
+    // Initialize overlay state from config
+    clozeOverlayEnabled = EFDRC.CONF?.cloze_tools?.auto_show_overlay || false
+
     const shortcuts = EFDRC.CONF.cloze_tools?.shortcuts
     if (!shortcuts) return
 
@@ -1096,6 +1273,24 @@
     if (shortcuts.jump_to_end) {
       EFDRC.registerShortcut(shortcuts.jump_to_end, jumpToEnd)
     }
+
+    // Visual features
+    if (shortcuts.toggle_overlay) {
+      EFDRC.registerShortcut(shortcuts.toggle_overlay, toggleClozeOverlay)
+    }
+  }
+
+  // Hook into field focus/blur for visual features
+  const originalHandleFocus = EFDRC.handleFocus
+  EFDRC.handleFocus = function(event, target) {
+    originalHandleFocus(event, target)
+    setupVisualFeatures(target)
+  }
+
+  const originalHandleBlur = EFDRC.handleBlur
+  EFDRC.handleBlur = function(event, target) {
+    cleanupVisualFeatures(target)
+    originalHandleBlur(event, target)
   }
 
   /**
@@ -1188,6 +1383,10 @@
     jumpToNextCloze,
     jumpToPrevCloze,
     jumpToBeginning,
-    jumpToEnd
+    jumpToEnd,
+    toggleClozeOverlay,
+    showClozeOverlay,
+    hideClozeOverlay,
+    getClozeColor
   }
 })()
