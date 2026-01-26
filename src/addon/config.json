@@ -24,7 +24,15 @@
       "remove_hint": "Ctrl + Shift + Alt + H",
       "word_count_hint": "Ctrl + Shift + W",
       "hint_from_selection": "Ctrl + Shift + Alt + S",
-      "replay_question": "Ctrl + Shift + Alt + F"
+      "replay_question": "Ctrl + Shift + Alt + F",
+      "split_cloze": "Ctrl + Shift + S",
+      "merge_clozes": "Ctrl + Shift + Alt + M",
+      "move_out_of_cloze": "Ctrl + Shift + O",
+      "image_to_cloze": "Ctrl + Shift + Alt + I",
+      "jump_next_cloze": "Ctrl + ]",
+      "jump_prev_cloze": "Ctrl + [",
+      "jump_to_beginning": "Ctrl + Shift + Alt + ,",
+      "jump_to_end": "Ctrl + Shift + Alt + ."
     }
   },
   "special_formatting": {

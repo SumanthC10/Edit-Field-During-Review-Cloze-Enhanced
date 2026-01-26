@@ -429,6 +429,307 @@
     return false
   }
 
+  // ============ CLOZE STRUCTURE ============
+
+  /**
+   * Split cloze at selection boundary
+   * Select "family history" in {{c1::family history of ASCVD}}
+   * → {{c1::family history}} {{c1::of ASCVD}}
+   */
+  function splitCloze(event, elem) {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed) return // Need a selection
+
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    const selectedText = selection.toString()
+    if (!selectedText) return
+
+    // Get plain text content
+    const temp = document.createElement('div')
+    temp.innerHTML = cloze.content
+    const plainContent = temp.textContent || ''
+
+    // Find where selection is within the cloze content
+    const selStart = plainContent.indexOf(selectedText)
+    if (selStart === -1) return
+
+    const selEnd = selStart + selectedText.length
+
+    // Get the parts
+    const beforeSel = plainContent.substring(0, selStart).trim()
+    const selected = selectedText.trim()
+    const afterSel = plainContent.substring(selEnd).trim()
+
+    if (!selected) return
+
+    const hint = cloze.hint ? `::${cloze.hint}` : ''
+    const html = elem.innerHTML
+    const before = html.substring(0, cloze.htmlStart)
+    const after = html.substring(cloze.htmlEnd)
+
+    // Build the split clozes
+    let newClozes = ''
+    if (beforeSel) {
+      newClozes += `{{c${cloze.number}::${beforeSel}${hint}}} `
+    }
+    newClozes += `{{c${cloze.number}::${selected}${hint}}}`
+    if (afterSel) {
+      newClozes += ` {{c${cloze.number}::${afterSel}${hint}}}`
+    }
+
+    elem.innerHTML = before + newClozes + after
+    placeCursorAtOffset(elem, cloze.textStart)
+  }
+
+  /**
+   * Merge adjacent same-number clozes (including text between them)
+   * {{c1::one}} two {{c1::three}} → {{c1::one two three}}
+   */
+  function mergeClozes(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    const html = elem.innerHTML
+    const allClozes = getAllClozes(elem)
+
+    // Find all clozes with same number
+    const sameClozes = allClozes.filter(c => c.number === cloze.number)
+    if (sameClozes.length <= 1) return // Nothing to merge
+
+    // Find the first and last cloze with this number
+    const firstCloze = sameClozes[0]
+    const lastCloze = sameClozes[sameClozes.length - 1]
+
+    // Get everything between first cloze start and last cloze end
+    const betweenHtml = html.substring(firstCloze.index, lastCloze.index + lastCloze.match.length)
+
+    // Extract all content: replace cloze markup with content, keep text between
+    const mergedContent = betweenHtml.replace(/\{\{c\d+::(.*?)(?:::.*?)?\}\}/g, '$1')
+
+    // Use hint from first cloze that has one, or none
+    const hintCloze = sameClozes.find(c => c.hint)
+    const hint = hintCloze ? `::${hintCloze.hint}` : ''
+
+    // Build merged cloze
+    const newCloze = `{{c${cloze.number}::${mergedContent}${hint}}}`
+
+    // Replace in HTML
+    const before = html.substring(0, firstCloze.index)
+    const after = html.substring(lastCloze.index + lastCloze.match.length)
+    elem.innerHTML = before + newCloze + after
+
+    // Position cursor at start of merged cloze
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = before
+    placeCursorAtOffset(elem, tempDiv.textContent.length)
+  }
+
+  /**
+   * Move selected text out of cloze
+   * Smart: start→before, end→after, middle→split
+   */
+  function moveOutOfCloze(event, elem) {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed) return
+
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    const selectedText = selection.toString()
+    if (!selectedText) return
+
+    // Get plain content of cloze
+    const temp = document.createElement('div')
+    temp.innerHTML = cloze.content
+    const plainContent = temp.textContent || ''
+
+    // Find where selection is within the cloze content
+    const selStart = plainContent.indexOf(selectedText)
+    if (selStart === -1) return // Selection not found in cloze content
+
+    const selEnd = selStart + selectedText.length
+    const contentLen = plainContent.length
+
+    // Determine position: start, end, or middle
+    const atStart = selStart === 0
+    const atEnd = selEnd === contentLen
+
+    const hint = cloze.hint ? `::${cloze.hint}` : ''
+    const html = elem.innerHTML
+    const before = html.substring(0, cloze.htmlStart)
+    const after = html.substring(cloze.htmlEnd)
+
+    let newHtml
+
+    if (atStart && atEnd) {
+      // Selected entire content - just remove cloze markup
+      newHtml = before + selectedText + after
+    } else if (atStart) {
+      // At start - move before cloze
+      const remaining = plainContent.substring(selEnd).trim()
+      newHtml = before + selectedText + ' ' + `{{c${cloze.number}::${remaining}${hint}}}` + after
+    } else if (atEnd) {
+      // At end - move after cloze
+      const remaining = plainContent.substring(0, selStart).trim()
+      newHtml = before + `{{c${cloze.number}::${remaining}${hint}}}` + ' ' + selectedText + after
+    } else {
+      // Middle - split into three parts
+      const beforeSel = plainContent.substring(0, selStart).trim()
+      const afterSel = plainContent.substring(selEnd).trim()
+      newHtml = before +
+        `{{c${cloze.number}::${beforeSel}${hint}}}` + ' ' +
+        selectedText + ' ' +
+        `{{c${cloze.number}::${afterSel}${hint}}}` + after
+    }
+
+    elem.innerHTML = newHtml
+    placeCursorAtOffset(elem, before.length)
+  }
+
+  /**
+   * Convert selected image to cloze
+   * <img src="..."> → {{c1::<img src="...">}}
+   */
+  function imageToClose(event, elem) {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+
+    // Check if selection contains an image
+    let img = null
+    if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+      img = range.startContainer.querySelector('img')
+    }
+    if (!img && range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE) {
+      img = range.commonAncestorContainer.querySelector('img')
+    }
+    if (!img) {
+      // Check if cursor is on/near an image
+      const allImgs = elem.querySelectorAll('img')
+      for (const testImg of allImgs) {
+        if (selection.containsNode(testImg, true)) {
+          img = testImg
+          break
+        }
+      }
+    }
+
+    if (!img) return // No image found
+
+    // Find highest cloze number and increment
+    let highest = 0
+    const html = elem.innerHTML
+    let m
+    const myRe = /\{\{c(\d+)::/g
+    while ((m = myRe.exec(html)) !== null) {
+      highest = Math.max(highest, parseInt(m[1], 10))
+    }
+    highest = Math.max(1, highest + 1)
+
+    // Wrap image in cloze
+    const imgHtml = img.outerHTML
+    const clozeImg = `{{c${highest}::${imgHtml}}}`
+
+    // Replace image with clozed image
+    const newHtml = html.replace(imgHtml, clozeImg)
+    elem.innerHTML = newHtml
+  }
+
+  // ============ CLOZE NAVIGATION ============
+
+  /**
+   * Get text position info for a cloze
+   */
+  function getClozeTextPosition(elem, cloze) {
+    const html = elem.innerHTML
+    const htmlBefore = html.substring(0, cloze.index)
+    const temp = document.createElement('div')
+    temp.innerHTML = htmlBefore
+    const textStart = temp.textContent.length
+
+    // Get text length of the cloze content
+    const clozeTemp = document.createElement('div')
+    clozeTemp.innerHTML = cloze.match
+    const clozeTextLen = clozeTemp.textContent.length
+    const textEnd = textStart + clozeTextLen
+
+    return { textStart, textEnd }
+  }
+
+  /**
+   * Jump to the next cloze in field (cursor at end of cloze content)
+   */
+  function jumpToNextCloze(event, elem) {
+    const cursorPos = getCursorTextOffset(elem)
+    if (cursorPos < 0) return
+
+    const allClozes = getAllClozes(elem)
+    if (allClozes.length === 0) return
+
+    // Find the next cloze after cursor position
+    for (const cloze of allClozes) {
+      const pos = getClozeTextPosition(elem, cloze)
+
+      if (pos.textStart > cursorPos) {
+        // Place cursor at end of cloze content
+        placeCursorAtOffset(elem, pos.textEnd)
+        return
+      }
+    }
+
+    // Wrap around to first cloze
+    const firstCloze = allClozes[0]
+    const pos = getClozeTextPosition(elem, firstCloze)
+    placeCursorAtOffset(elem, pos.textEnd)
+  }
+
+  /**
+   * Jump to the previous cloze in field (cursor at end of cloze content)
+   */
+  function jumpToPrevCloze(event, elem) {
+    const cursorPos = getCursorTextOffset(elem)
+    if (cursorPos < 0) return
+
+    const allClozes = getAllClozes(elem)
+    if (allClozes.length === 0) return
+
+    // Calculate text positions for all clozes
+    const clozePositions = allClozes.map(cloze => {
+      const pos = getClozeTextPosition(elem, cloze)
+      return { cloze, ...pos }
+    })
+
+    // Find the previous cloze before cursor position
+    for (let i = clozePositions.length - 1; i >= 0; i--) {
+      if (clozePositions[i].textStart < cursorPos) {
+        placeCursorAtOffset(elem, clozePositions[i].textEnd)
+        return
+      }
+    }
+
+    // Wrap around to last cloze
+    const lastPos = clozePositions[clozePositions.length - 1]
+    placeCursorAtOffset(elem, lastPos.textEnd)
+  }
+
+  /**
+   * Jump to beginning of field
+   */
+  function jumpToBeginning(event, elem) {
+    placeCursorAtOffset(elem, 0)
+  }
+
+  /**
+   * Jump to end of field
+   */
+  function jumpToEnd(event, elem) {
+    const len = elem.textContent ? elem.textContent.length : 0
+    placeCursorAtOffset(elem, len)
+  }
+
   // ============ CARD NAVIGATION ============
 
   /**
@@ -644,7 +945,7 @@
       if (clozeNum === hintPreviewClozeNumber) {
         // ALL clozes with this number should be hidden (like real card review)
         const displayHint = hint || '...'
-        return `<span style="color: #4fc3f7; background: rgba(79, 195, 247, 0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(79, 195, 247, 0.3);">[${displayHint}]</span>`
+        return `<span style="color: #4fc3f7; font-weight: 500;">[${displayHint}]</span>`
       } else {
         // Other numbered clozes - show content normally
         return plainContent
@@ -761,6 +1062,40 @@
       EFDRC.registerShortcut(shortcuts.replay_question, replayQuestion)
       setupGlobalReplayShortcut(shortcuts.replay_question)
     }
+
+    // Structure shortcuts
+    if (shortcuts.split_cloze) {
+      EFDRC.registerShortcut(shortcuts.split_cloze, splitCloze)
+    }
+
+    if (shortcuts.merge_clozes) {
+      EFDRC.registerShortcut(shortcuts.merge_clozes, mergeClozes)
+    }
+
+    if (shortcuts.move_out_of_cloze) {
+      EFDRC.registerShortcut(shortcuts.move_out_of_cloze, moveOutOfCloze)
+    }
+
+    if (shortcuts.image_to_cloze) {
+      EFDRC.registerShortcut(shortcuts.image_to_cloze, imageToClose)
+    }
+
+    // Navigation shortcuts
+    if (shortcuts.jump_next_cloze) {
+      EFDRC.registerShortcut(shortcuts.jump_next_cloze, jumpToNextCloze)
+    }
+
+    if (shortcuts.jump_prev_cloze) {
+      EFDRC.registerShortcut(shortcuts.jump_prev_cloze, jumpToPrevCloze)
+    }
+
+    if (shortcuts.jump_to_beginning) {
+      EFDRC.registerShortcut(shortcuts.jump_to_beginning, jumpToBeginning)
+    }
+
+    if (shortcuts.jump_to_end) {
+      EFDRC.registerShortcut(shortcuts.jump_to_end, jumpToEnd)
+    }
   }
 
   /**
@@ -845,6 +1180,14 @@
     showHintPreview,
     hideHintPreview,
     replayQuestion,
-    hintFromSelection
+    hintFromSelection,
+    splitCloze,
+    mergeClozes,
+    moveOutOfCloze,
+    imageToClose,
+    jumpToNextCloze,
+    jumpToPrevCloze,
+    jumpToBeginning,
+    jumpToEnd
   }
 })()
