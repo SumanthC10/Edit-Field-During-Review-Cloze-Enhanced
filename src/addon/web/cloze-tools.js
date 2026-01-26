@@ -904,6 +904,311 @@
     hideClozeOverlay()
   }
 
+  // ============ ADVANCED EDITING ============
+
+  /**
+   * Copy the inner content of cloze at cursor to clipboard
+   * {{c1::Apple::hint}} → copies "Apple"
+   */
+  function copyClozeContent(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    // Get plain text content
+    const temp = document.createElement('div')
+    temp.innerHTML = cloze.content
+    const plainContent = temp.textContent || ''
+
+    // Use fallback method that works in Anki's webview
+    const textarea = document.createElement('textarea')
+    textarea.value = plainContent
+    textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+
+    try {
+      document.execCommand('copy')
+    } catch (err) {
+      console.error('Copy failed:', err)
+    }
+
+    document.body.removeChild(textarea)
+    elem.focus()
+  }
+
+  function showToast(message) {
+    const existing = document.getElementById('efdrc-toast')
+    if (existing) existing.remove()
+
+    const toast = document.createElement('div')
+    toast.id = 'efdrc-toast'
+    toast.textContent = message
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      z-index: 99999;
+      opacity: 0;
+      transition: opacity 0.2s;
+    `
+    document.body.appendChild(toast)
+
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1'
+      setTimeout(() => {
+        toast.style.opacity = '0'
+        setTimeout(() => toast.remove(), 200)
+      }, 1500)
+    })
+  }
+
+  /**
+   * Preview how the card will look during review
+   */
+  let previewPopup = null
+
+  function showCardPreview(event, elem) {
+    hideCardPreview()
+
+    const html = elem.innerHTML
+    const allClozes = getAllClozes(elem)
+
+    if (allClozes.length === 0) return
+
+    // Find unique cloze numbers
+    const clozeNums = [...new Set(allClozes.map(c => c.number))].sort((a, b) => a - b)
+
+    previewPopup = document.createElement('div')
+    previewPopup.id = 'efdrc-preview-popup'
+    previewPopup.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #2a2a2a;
+      color: #e0e0e0;
+      padding: 20px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 99999;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      max-width: 80%;
+      max-height: 80%;
+      overflow: auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `
+
+    let previewHtml = `
+      <div style="font-size: 13px; font-weight: 500; margin-bottom: 16px; color: #fff;">
+        Card Preview
+      </div>
+    `
+
+    // Generate preview for each cloze number
+    for (const num of clozeNums) {
+      const color = getClozeColor(num)
+      const previewText = html.replace(/\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}/g, (match, cNum, content, hint) => {
+        const clozeNum = parseInt(cNum, 10)
+        const temp = document.createElement('div')
+        temp.innerHTML = content
+        const plainContent = temp.textContent || ''
+
+        if (clozeNum === num) {
+          const displayHint = hint || '...'
+          return `<span style="color: ${color}; font-weight: 500;">[${displayHint}]</span>`
+        } else {
+          return plainContent
+        }
+      })
+
+      previewHtml += `
+        <div style="margin-bottom: 12px; padding: 12px; background: #3a3a3a; border-radius: 6px;">
+          <div style="color: ${color}; font-size: 11px; margin-bottom: 6px; font-weight: 600;">Card ${num}</div>
+          <div style="line-height: 1.5;">${previewText}</div>
+        </div>
+      `
+    }
+
+    previewPopup.innerHTML = previewHtml
+
+    document.body.appendChild(previewPopup)
+
+    // Close on Escape or Enter - use capture and prevent propagation
+    const closeHandler = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+        hideCardPreview()
+        document.removeEventListener('keydown', closeHandler, true)
+      }
+    }
+    document.addEventListener('keydown', closeHandler, true)
+
+    // Close on click outside
+    setTimeout(() => {
+      document.addEventListener('click', function clickOutside(e) {
+        if (previewPopup && !previewPopup.contains(e.target)) {
+          hideCardPreview()
+          document.removeEventListener('click', clickOutside)
+        }
+      })
+    }, 100)
+  }
+
+  function hideCardPreview() {
+    if (previewPopup) {
+      previewPopup.remove()
+      previewPopup = null
+    }
+  }
+
+  /**
+   * Find and replace within clozes only
+   */
+  let findReplacePopup = null
+
+  function showFindReplace(event, elem) {
+    hideFindReplace()
+
+    findReplacePopup = document.createElement('div')
+    findReplacePopup.id = 'efdrc-find-replace-popup'
+    findReplacePopup.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #2a2a2a;
+      color: #e0e0e0;
+      padding: 20px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 99999;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      min-width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `
+
+    findReplacePopup.innerHTML = `
+      <div style="font-size: 13px; font-weight: 500; margin-bottom: 16px; color: #fff;">
+        Find & Replace in Clozes
+      </div>
+      <div style="margin-bottom: 14px;">
+        <input type="text" id="efdrc-find-input" style="
+          width: 100%;
+          padding: 10px 12px;
+          border: none;
+          border-radius: 6px;
+          background: #3a3a3a;
+          color: #fff;
+          font-size: 14px;
+          box-sizing: border-box;
+          outline: none;
+        " placeholder="Find...">
+      </div>
+      <div style="margin-bottom: 16px;">
+        <input type="text" id="efdrc-replace-input" style="
+          width: 100%;
+          padding: 10px 12px;
+          border: none;
+          border-radius: 6px;
+          background: #3a3a3a;
+          color: #fff;
+          font-size: 14px;
+          box-sizing: border-box;
+          outline: none;
+        " placeholder="Replace with...">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="efdrc-cancel-btn" style="
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          background: #444;
+          color: #ccc;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+        ">Cancel</button>
+        <button id="efdrc-replace-all-btn" style="
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          background: #4a9eff;
+          color: #fff;
+          font-weight: 500;
+          cursor: pointer;
+          font-size: 13px;
+        ">Replace All</button>
+      </div>
+      <div id="efdrc-replace-result" style="margin-top: 12px; font-size: 12px; color: #888; text-align: center;"></div>
+    `
+
+    document.body.appendChild(findReplacePopup)
+
+    const findInput = document.getElementById('efdrc-find-input')
+    const replaceInput = document.getElementById('efdrc-replace-input')
+    const replaceBtn = document.getElementById('efdrc-replace-all-btn')
+    const cancelBtn = document.getElementById('efdrc-cancel-btn')
+    const resultDiv = document.getElementById('efdrc-replace-result')
+
+    findInput.focus()
+
+    replaceBtn.addEventListener('click', () => {
+      const findText = findInput.value
+      const replaceText = replaceInput.value
+
+      if (!findText) return
+
+      const html = elem.innerHTML
+      let count = 0
+
+      // Replace only within cloze content
+      const newHtml = html.replace(/(\{\{c\d+::)(.*?)((?:::.*?)?\}\})/g, (match, prefix, content, suffix) => {
+        if (content.includes(findText)) {
+          const newContent = content.split(findText).join(replaceText)
+          count += (content.split(findText).length - 1)
+          return prefix + newContent + suffix
+        }
+        return match
+      })
+
+      if (count > 0) {
+        elem.innerHTML = newHtml
+        resultDiv.textContent = `Replaced ${count} occurrence${count > 1 ? 's' : ''}`
+        resultDiv.style.color = '#81c784'
+      } else {
+        resultDiv.textContent = 'No matches found in clozes'
+        resultDiv.style.color = '#e57373'
+      }
+    })
+
+    cancelBtn.addEventListener('click', hideFindReplace)
+
+    // Close on Escape
+    const closeHandler = (e) => {
+      if (e.key === 'Escape') {
+        hideFindReplace()
+        document.removeEventListener('keydown', closeHandler)
+        elem.focus()
+      }
+    }
+    document.addEventListener('keydown', closeHandler)
+  }
+
+  function hideFindReplace() {
+    if (findReplacePopup) {
+      findReplacePopup.remove()
+      findReplacePopup = null
+    }
+  }
+
   // ============ CARD NAVIGATION ============
 
   /**
@@ -1278,6 +1583,19 @@
     if (shortcuts.toggle_overlay) {
       EFDRC.registerShortcut(shortcuts.toggle_overlay, toggleClozeOverlay)
     }
+
+    // Advanced editing
+    if (shortcuts.copy_cloze_content) {
+      EFDRC.registerShortcut(shortcuts.copy_cloze_content, copyClozeContent)
+    }
+
+    if (shortcuts.preview_card) {
+      EFDRC.registerShortcut(shortcuts.preview_card, showCardPreview)
+    }
+
+    if (shortcuts.find_replace) {
+      EFDRC.registerShortcut(shortcuts.find_replace, showFindReplace)
+    }
   }
 
   // Hook into field focus/blur for visual features
@@ -1387,6 +1705,11 @@
     toggleClozeOverlay,
     showClozeOverlay,
     hideClozeOverlay,
-    getClozeColor
+    getClozeColor,
+    copyClozeContent,
+    showCardPreview,
+    hideCardPreview,
+    showFindReplace,
+    hideFindReplace
   }
 })()

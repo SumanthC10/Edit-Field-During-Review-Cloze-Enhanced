@@ -33,7 +33,10 @@
       "jump_prev_cloze": "Ctrl + [",
       "jump_to_beginning": "Ctrl + Shift + Alt + ,",
       "jump_to_end": "Ctrl + Shift + Alt + .",
-      "toggle_overlay": "Ctrl + Shift + Alt + O"
+      "toggle_overlay": "Ctrl + Shift + Alt + O",
+      "copy_cloze_content": "Ctrl + Shift + Alt + Y",
+      "preview_card": "Ctrl + Shift + Alt + P",
+      "find_replace": "Ctrl + Shift + Alt + G"
     },
     "auto_show_overlay": false,
     "max_cloze_length": 50
