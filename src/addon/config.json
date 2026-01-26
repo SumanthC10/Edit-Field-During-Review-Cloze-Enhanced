@@ -19,7 +19,12 @@
       "remove_same_number": "Ctrl + Shift + Alt + R",
       "increment": "Ctrl + Shift + Alt + J",
       "decrement": "Ctrl + Shift + Alt + K",
-      "renumber": "Ctrl + Shift + Alt + N"
+      "renumber": "Ctrl + Shift + Alt + N",
+      "add_hint": "Ctrl + Shift + H",
+      "remove_hint": "Ctrl + Shift + Alt + H",
+      "word_count_hint": "Ctrl + Shift + W",
+      "hint_from_selection": "Ctrl + Shift + Alt + S",
+      "replay_question": "Ctrl + Shift + Alt + F"
     }
   },
   "special_formatting": {

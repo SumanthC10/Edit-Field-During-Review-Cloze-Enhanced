@@ -429,6 +429,284 @@
     return false
   }
 
+  // ============ CARD NAVIGATION ============
+
+  /**
+   * Replay the question (show front of card) without undoing edits
+   */
+  function replayQuestion(event, elem) {
+    // Just show the question directly - edits are saved on blur automatically
+    pycmd('EFDRC!showQuestion')
+  }
+
+  // ============ HINT FUNCTIONS ============
+
+  /**
+   * Set or update hint for cloze at cursor
+   * @param {HTMLElement} elem - The editable field element
+   * @param {Object} cloze - The cloze object
+   * @param {string} hint - The new hint text
+   */
+  function setClozeHint(elem, cloze, hint) {
+    const newCloze = hint
+      ? `{{c${cloze.number}::${cloze.content}::${hint}}}`
+      : `{{c${cloze.number}::${cloze.content}}}`
+
+    const html = elem.innerHTML
+    const before = html.substring(0, cloze.htmlStart)
+    const after = html.substring(cloze.htmlEnd)
+    elem.innerHTML = before + newCloze + after
+
+    placeCursorAtOffset(elem, cloze.textStart)
+    return true
+  }
+
+  /**
+   * Remove hint from cloze at cursor
+   */
+  function removeHint(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    if (cloze.hint) {
+      setClozeHint(elem, cloze, null)
+    }
+  }
+
+  /**
+   * Add word count hint to cloze at cursor
+   * e.g., "2 words" or "1 word"
+   */
+  function addWordCountHint(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    // Strip HTML tags to count words in plain text
+    const temp = document.createElement('div')
+    temp.innerHTML = cloze.content
+    const plainText = temp.textContent || ''
+
+    // Count words (split by whitespace, filter empty)
+    const words = plainText.trim().split(/\s+/).filter(w => w.length > 0)
+    const count = words.length
+    const hint = count === 1 ? '1 word' : `${count} words`
+
+    setClozeHint(elem, cloze, hint)
+  }
+
+  // State for hint preview
+  let hintPreviewElem = null
+  let hintPreviewClozeIndex = null
+  let hintPreviewClozeNumber = null
+  let hintPreviewFieldId = null
+  let hintPreviewOriginalHtml = null
+
+  /**
+   * Strip HTML tags from content
+   */
+  function stripHtml(html) {
+    const temp = document.createElement('div')
+    temp.innerHTML = html
+    return temp.textContent || ''
+  }
+
+  /**
+   * Show floating hint preview centered on screen
+   */
+  function showHintPreview(elem, cloze, clozeIndex) {
+    hideHintPreview()
+
+    hintPreviewFieldId = elem.getAttribute('data-EFDRCfield')
+    hintPreviewClozeIndex = clozeIndex
+    hintPreviewOriginalHtml = elem.innerHTML
+    hintPreviewClozeNumber = cloze.number
+
+    hintPreviewElem = document.createElement('div')
+    hintPreviewElem.id = 'efdrc-hint-preview-float'
+    hintPreviewElem.innerHTML = `
+      <div style="
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #fff;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        max-width: 600px;
+        min-width: 300px;
+        z-index: 99999;
+        border: 1px solid rgba(255,255,255,0.1);
+      ">
+        <div style="color: #888; font-size: 11px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Card Preview (c${cloze.number}) - Esc to close</div>
+        <div id="efdrc-hint-preview-content" style="
+          font-size: 14px;
+          line-height: 1.5;
+          word-break: break-word;
+        "></div>
+      </div>
+    `
+
+    document.body.appendChild(hintPreviewElem)
+
+    // Initial preview update
+    updateFloatingHintPreview(elem)
+
+    // Listen for typing to update preview
+    elem.addEventListener('input', handleHintTyping)
+    elem.addEventListener('keydown', handleHintKeydown)
+  }
+
+  function hideHintPreview() {
+    if (hintPreviewElem) {
+      // Remove listeners from field
+      const elem = document.querySelector(`[data-EFDRCfield="${hintPreviewFieldId}"]`)
+      if (elem) {
+        elem.removeEventListener('input', handleHintTyping)
+        elem.removeEventListener('keydown', handleHintKeydown)
+      }
+
+      hintPreviewElem.remove()
+      hintPreviewElem = null
+    }
+    hintPreviewClozeIndex = null
+    hintPreviewClozeNumber = null
+    hintPreviewFieldId = null
+    hintPreviewOriginalHtml = null
+  }
+
+  function handleHintTyping() {
+    const elem = document.querySelector(`[data-EFDRCfield="${hintPreviewFieldId}"]`)
+    if (elem) {
+      updateFloatingHintPreview(elem)
+    }
+  }
+
+  function handleHintKeydown(event) {
+    if (event.key === 'Escape') {
+      hideHintPreview()
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      // Get current field and find the cloze to position cursor after it
+      const elem = document.querySelector(`[data-EFDRCfield="${hintPreviewFieldId}"]`)
+      if (elem) {
+        const allClozes = getAllClozes(elem)
+        const cloze = allClozes[hintPreviewClozeIndex]
+        if (cloze) {
+          // Calculate text position after the cloze
+          const html = elem.innerHTML
+          const htmlBefore = html.substring(0, cloze.index)
+          const temp = document.createElement('div')
+          temp.innerHTML = htmlBefore
+          const textBefore = temp.textContent.length
+
+          // Get text length of the full cloze
+          const clozeTemp = document.createElement('div')
+          clozeTemp.innerHTML = cloze.match
+          const clozeTextLen = clozeTemp.textContent.length
+
+          // Position cursor right after the cloze
+          placeCursorAtOffset(elem, textBefore + clozeTextLen)
+        }
+      }
+      hideHintPreview()
+    }
+  }
+
+  function updateFloatingHintPreview(elem) {
+    const preview = document.getElementById('efdrc-hint-preview-content')
+    if (!preview) return
+
+    const html = elem.innerHTML
+
+    // Get current cloze at the stored index
+    const allClozes = getAllClozes(elem)
+    const currentCloze = allClozes[hintPreviewClozeIndex]
+
+    if (!currentCloze) {
+      hideHintPreview()
+      return
+    }
+
+    // Track which occurrence we're on
+    let occurrenceCount = 0
+
+    // Replace all clozes for preview - hide ALL clozes with same number (like real card)
+    const regex = /\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}/g
+    const previewText = html.replace(regex, (match, num, content, hint) => {
+      const clozeNum = parseInt(num, 10)
+      const plainContent = stripHtml(content)
+      const currentIndex = occurrenceCount
+      occurrenceCount++
+
+      if (clozeNum === hintPreviewClozeNumber) {
+        // ALL clozes with this number should be hidden (like real card review)
+        const displayHint = hint || '...'
+        return `<span style="color: #4fc3f7; background: rgba(79, 195, 247, 0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(79, 195, 247, 0.3);">[${displayHint}]</span>`
+      } else {
+        // Other numbered clozes - show content normally
+        return plainContent
+      }
+    })
+
+    preview.innerHTML = previewText
+  }
+
+  /**
+   * Use selected text as hint for the cloze
+   * Select "App" in {{c1::Apple}} → {{c1::Apple::App}}
+   */
+  function hintFromSelection(event, elem) {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed) return // No selection
+
+    const selectedText = selection.toString().trim()
+    if (!selectedText) return
+
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    // Set the selected text as the hint
+    setClozeHint(elem, cloze, selectedText)
+  }
+
+  /**
+   * Add hint to cloze - inserts :: and positions cursor, shows preview
+   */
+  function addHint(event, elem) {
+    const cloze = getClozeAtCursor(elem)
+    if (!cloze) return
+
+    // Find cloze index
+    const allClozes = getAllClozes(elem)
+    const clozeIndex = allClozes.findIndex(c => c.index === cloze.index)
+
+    const html = elem.innerHTML
+
+    // Build new cloze with :: at end (or keep existing hint)
+    const newCloze = cloze.hint
+      ? `{{c${cloze.number}::${cloze.content}::${cloze.hint}}}`
+      : `{{c${cloze.number}::${cloze.content}::}}`
+
+    // Replace only this cloze
+    const before = html.substring(0, cloze.htmlStart)
+    const after = html.substring(cloze.htmlEnd)
+    elem.innerHTML = before + newCloze + after
+
+    // Position cursor right before the closing }}
+    // The cursor should be after :: (where hint goes)
+    const hintStartPos = cloze.textStart + `{{c${cloze.number}::`.length + stripHtml(cloze.content).length + '::'.length
+    const hintEndPos = hintStartPos + (cloze.hint ? cloze.hint.length : 0)
+
+    // Place cursor at hint position
+    placeCursorAtOffset(elem, hintEndPos)
+
+    // Show floating preview
+    showHintPreview(elem, cloze, clozeIndex)
+  }
+
   /**
    * Register cloze tool shortcuts from config
    */
@@ -460,6 +738,84 @@
     if (shortcuts.renumber) {
       EFDRC.registerShortcut(shortcuts.renumber, startRenumberSequence)
     }
+
+    // Hint shortcuts
+    if (shortcuts.add_hint) {
+      EFDRC.registerShortcut(shortcuts.add_hint, addHint)
+    }
+
+    if (shortcuts.remove_hint) {
+      EFDRC.registerShortcut(shortcuts.remove_hint, removeHint)
+    }
+
+    if (shortcuts.word_count_hint) {
+      EFDRC.registerShortcut(shortcuts.word_count_hint, addWordCountHint)
+    }
+
+    if (shortcuts.hint_from_selection) {
+      EFDRC.registerShortcut(shortcuts.hint_from_selection, hintFromSelection)
+    }
+
+    // Card navigation - register both on field and globally
+    if (shortcuts.replay_question) {
+      EFDRC.registerShortcut(shortcuts.replay_question, replayQuestion)
+      setupGlobalReplayShortcut(shortcuts.replay_question)
+    }
+  }
+
+  /**
+   * Parse shortcut string into scutInfo object (same format as EFDRC.shortcuts)
+   */
+  function parseShortcut(shortcut) {
+    const specialCharCodes = {
+      '-': 'minus', '=': 'equal', '[': 'bracketleft', ']': 'bracketright',
+      ';': 'semicolon', "'": 'quote', '`': 'backquote', '\\': 'backslash',
+      ',': 'comma', '.': 'period', '/': 'slash'
+    }
+    const shortcutKeys = shortcut.toLowerCase().split(/[+]/).map(key => key.trim())
+    const scutInfo = {
+      ctrl: shortcutKeys.includes('ctrl'),
+      shift: shortcutKeys.includes('shift'),
+      alt: shortcutKeys.includes('alt')
+    }
+    let mainKey = shortcutKeys[shortcutKeys.length - 1]
+    if (mainKey.length === 1) {
+      if (/\d/.test(mainKey)) {
+        mainKey = 'digit' + mainKey
+      } else if (/[a-zA-Z]/.test(mainKey)) {
+        mainKey = 'key' + mainKey
+      } else if (specialCharCodes[mainKey]) {
+        mainKey = specialCharCodes[mainKey]
+      }
+    }
+    scutInfo.key = mainKey
+    return scutInfo
+  }
+
+  /**
+   * Check if event matches shortcut info
+   */
+  function matchShortcut(event, scutInfo) {
+    if (scutInfo.key !== event.code.toLowerCase()) return false
+    if (scutInfo.ctrl !== (event.ctrlKey || event.metaKey)) return false
+    if (scutInfo.shift !== event.shiftKey) return false
+    if (scutInfo.alt !== event.altKey) return false
+    return true
+  }
+
+  /**
+   * Setup global keyboard listener for replay question
+   */
+  function setupGlobalReplayShortcut(shortcutStr) {
+    const scutInfo = parseShortcut(shortcutStr)
+
+    document.addEventListener('keydown', (event) => {
+      if (matchShortcut(event, scutInfo)) {
+        event.preventDefault()
+        event.stopPropagation()
+        replayQuestion(event, null)
+      }
+    }, true)
   }
 
   // Listen for number keys during renumber sequence
@@ -468,6 +824,7 @@
       handleRenumberKey(event)
     }
   }, true)
+
 
   // Expose helper functions for potential future use
   EFDRC.clozeTools = {
@@ -480,6 +837,14 @@
     changeClozeNumber,
     incrementClozeNumber,
     decrementClozeNumber,
-    startRenumberSequence
+    startRenumberSequence,
+    setClozeHint,
+    addHint,
+    removeHint,
+    addWordCountHint,
+    showHintPreview,
+    hideHintPreview,
+    replayQuestion,
+    hintFromSelection
   }
 })()

@@ -213,6 +213,12 @@ def handle_pycmd_message(
     elif message == "EFDRC!reload":
         reload_review_context(context)
         return (True, None)
+
+    elif message == "EFDRC!showQuestion":
+        # Replay the question (front) of the card without undoing edits
+        if reviewer is not None:
+            reviewer._showQuestion()
+        return (True, None)
         # Catch ctrl key presses from bottom.web.
     elif message == "EFDRC!ctrldown":
         web.eval("EFDRC.ctrldown()")
