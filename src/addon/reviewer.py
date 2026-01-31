@@ -39,9 +39,9 @@ def myRevHtml() -> str:
     conf.load()  # update config when reviewer is launched
 
     # config should not have any single quote values
-    js = "EFDRC.registerConfig('{}');".format(conf.to_json())
-    js += "EFDRC.setupReviewer();"
-    js += "EFDRC.setupClozeTools();"
+    js = "EFDRCE.registerConfig('{}');".format(conf.to_json())
+    js += "EFDRCE.setupReviewer();"
+    js += "EFDRCE.setupClozeTools();"
     return f"<script>{js}</script>"
 
 
@@ -51,11 +51,11 @@ def edit_filter(txt: str, field: str, filt: str, ctx: TemplateRenderContext) -> 
     # Encode field to escape special characters.
     class_name = ""
     if conf["outline"]:
-        class_name += "EFDRC-outline "
+        class_name += "EFDRCE-outline "
     if conf["ctrl_click"]:
-        class_name += "EFDRC-ctrl "
+        class_name += "EFDRCE-ctrl "
     field = base64.b64encode(field.encode("utf-8")).decode("ascii")
-    txt = """<%s data-EFDRCfield="%s" class="%s">%s</%s>""" % (
+    txt = """<%s data-EFDRCEfield="%s" class="%s">%s</%s>""" % (
         conf["tag"],
         field,
         class_name,
@@ -66,7 +66,7 @@ def edit_filter(txt: str, field: str, filt: str, ctx: TemplateRenderContext) -> 
 
 
 def serve_card(txt: str, card: Card, kind: str) -> str:
-    return txt + "<script>EFDRC.serveCard()</script>"
+    return txt + "<script>EFDRCE.serveCard()</script>"
 
 
 def save_field_and_reload(
@@ -174,9 +174,9 @@ def handle_pycmd_message(
     else:
         return handled
 
-    if message.startswith("EFDRC#"):
+    if message.startswith("EFDRCE#"):
         errmsg = "Something unexpected occured. The edit may not have been saved."
-        nidstr, fld, new_val = message.replace("EFDRC#", "").split("#", 2)
+        nidstr, fld, new_val = message.replace("EFDRCE#", "").split("#", 2)
         nid = int(nidstr)
         note = card.note()
         if note.id != nid:
@@ -193,8 +193,8 @@ def handle_pycmd_message(
 
     # Replace reviewer field html if it is different from real field value.
     # For example, clozes, mathjax, audio.
-    elif message.startswith("EFDRC!focuson#"):
-        fld = message.replace("EFDRC!focuson#", "")
+    elif message.startswith("EFDRCE!focuson#"):
+        fld = message.replace("EFDRCE!focuson#", "")
         decoded_fld = base64.b64decode(fld, validate=True).decode("utf-8")
         note = card.note()
         try:
@@ -203,31 +203,31 @@ def handle_pycmd_message(
             tooltip(ERROR_MSG.format(str(e)))
             return (True, None)
         encoded_val = base64.b64encode(val.encode("utf-8")).decode("ascii")
-        web.eval(f"EFDRC.showRawField('{encoded_val}', '{note.id}', '{fld}')")
+        web.eval(f"EFDRCE.showRawField('{encoded_val}', '{note.id}', '{fld}')")
 
         # Reset timer from Speed Focus Mode add-on.
         if reviewer is not None:
-            reviewer.bottom.web.eval("window.EFDRCResetTimer()")
+            reviewer.bottom.web.eval("window.EFDRCEResetTimer()")
         return (True, None)
 
-    elif message == "EFDRC!reload":
+    elif message == "EFDRCE!reload":
         reload_review_context(context)
         return (True, None)
 
-    elif message == "EFDRC!showQuestion":
+    elif message == "EFDRCE!showQuestion":
         # Replay the question (front) of the card without undoing edits
         if reviewer is not None:
             reviewer._showQuestion()
         return (True, None)
         # Catch ctrl key presses from bottom.web.
-    elif message == "EFDRC!ctrldown":
-        web.eval("EFDRC.ctrldown()")
+    elif message == "EFDRCE!ctrldown":
+        web.eval("EFDRCE.ctrldown()")
         return (True, None)
-    elif message == "EFDRC!ctrlup":
-        web.eval("EFDRC.ctrlup()")
+    elif message == "EFDRCE!ctrlup":
+        web.eval("EFDRCE.ctrlup()")
         return (True, None)
 
-    elif message == "EFDRC!paste":
+    elif message == "EFDRCE!paste":
         # From aqt.editor.Editor._onPaste, doPaste.
         mime = mw.app.clipboard().mimeData(mode=QClipboard.Mode.Clipboard)
         html, internal = editorwv._processMime(mime)
@@ -235,12 +235,12 @@ def handle_pycmd_message(
         html = editorwv.editor._pastePreFilter(html, internal)
         print(html)
         web.eval(
-            "EFDRC.pasteHTML(%s, %s);" % (json.dumps(html), json.dumps(internal))
+            "EFDRCE.pasteHTML(%s, %s);" % (json.dumps(html), json.dumps(internal))
         )
         return (True, None)
 
-    elif message.startswith("EFDRC!debug#"):
-        fld = message.replace("EFDRC!debug#", "")
+    elif message.startswith("EFDRCE!debug#"):
+        fld = message.replace("EFDRCE!debug#", "")
         showText(fld)
         return (True, None)
     return handled
@@ -289,9 +289,9 @@ def toggle_cloze_overlay(checked):
     # Update JS state
     if mw.reviewer and mw.reviewer.web:
         if checked:
-            mw.reviewer.web.eval("if (EFDRC && EFDRC.clozeTools) { EFDRC.clozeTools.toggleClozeOverlay(null, document.activeElement); }")
+            mw.reviewer.web.eval("if (EFDRCE && EFDRCE.clozeTools) { EFDRCE.clozeTools.toggleClozeOverlay(null, document.activeElement); }")
         else:
-            mw.reviewer.web.eval("if (EFDRC && EFDRC.clozeTools) { EFDRC.clozeTools.hideClozeOverlay(); }")
+            mw.reviewer.web.eval("if (EFDRCE && EFDRCE.clozeTools) { EFDRCE.clozeTools.hideClozeOverlay(); }")
 
 def setup_menu():
     """Add menu items to Tools menu"""

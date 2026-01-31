@@ -1,7 +1,7 @@
 (function () {
-  window.EFDRC = {}
-  const EFDRC = window.EFDRC
-  EFDRC.shortcuts = []
+  window.EFDRCE = {}
+  const EFDRCE = window.EFDRCE
+  EFDRCE.shortcuts = []
 
   const removeSpan = function (el) {
     // removes all span code because depending on the note type
@@ -30,19 +30,19 @@
       highest += 1
     }
     highest = Math.max(1, highest)
-    EFDRC.wrapInternal(el, '{{c' + highest + '::', '}}', false)
+    EFDRCE.wrapInternal(el, '{{c' + highest + '::', '}}', false)
     event.preventDefault()
   }
 
   const ctrlLinkEnable = function () {
-    const links = document.querySelectorAll('[data-EFDRCfield] a')
+    const links = document.querySelectorAll('[data-EFDRCEfield] a')
     for (const el of links) {
       el.setAttribute('contenteditable', 'false')
     }
   }
 
   const ctrlLinkDisable = function () {
-    const links = document.querySelectorAll("[data-EFDRCfield] a[contenteditable='false']")
+    const links = document.querySelectorAll("[data-EFDRCEfield] a[contenteditable='false']")
     for (const el of links) {
       el.removeAttribute('contenteditable')
     }
@@ -55,8 +55,8 @@
   }
 
   /* Event Handlers */
-  EFDRC.handlePaste = function (e) {
-    if (!EFDRC.CONF.process_paste) {
+  EFDRCE.handlePaste = function (e) {
+    if (!EFDRCE.CONF.process_paste) {
       return
     }
     const paste = (e.clipboardData || window.clipboardData)
@@ -64,11 +64,11 @@
       return
     }
     e.preventDefault()
-    window.pycmd('EFDRC!paste') // python code accesses clipboard
+    window.pycmd('EFDRCE!paste') // python code accesses clipboard
   }
 
-  EFDRC.handleKeydown = function (ev, target) {
-    for (const scutInfo of EFDRC.shortcuts) {
+  EFDRCE.handleKeydown = function (ev, target) {
+    for (const scutInfo of EFDRCE.shortcuts) {
       if (matchShortcut(ev, scutInfo)) {
         const handled = scutInfo.handler(ev, target)
         if (handled !== -1) {
@@ -76,25 +76,25 @@
         }
       }
     }
-    if (isCtrlKey(ev.code)) EFDRC.ctrldown()
+    if (isCtrlKey(ev.code)) EFDRCE.ctrldown()
     ev.stopPropagation()
   }
 
-  EFDRC.handleKeyUp = (ev, target) => {
-    if (isCtrlKey(ev.code)) EFDRC.ctrlup()
+  EFDRCE.handleKeyUp = (ev, target) => {
+    if (isCtrlKey(ev.code)) EFDRCE.ctrlup()
     ev.stopPropagation()
   }
-  EFDRC.handleKeyPress = (ev, target) => {
+  EFDRCE.handleKeyPress = (ev, target) => {
     ev.stopPropagation()
   }
 
-  EFDRC.handleFocus = function (event, target) {
+  EFDRCE.handleFocus = function (event, target) {
     if (typeof window.showTooltip === 'function' && typeof window.showTooltip2 === 'undefined') {
       // Disable Popup Dictionary addon tooltip on double mouse click.
       // Using hotkey should still work however.
       window.showTooltip2 = window.showTooltip
       window.showTooltip = function (event, tooltip, element) {
-        EFDRC.tooltip = {
+        EFDRCE.tooltip = {
           ev: event,
           tt: tooltip,
           el: element
@@ -104,20 +104,20 @@
       window.invokeTooltipAtSelectedElm2 = window.invokeTooltipAtSelectedElm
       window.invokeTooltipAtSelectedElm = function () {
         window.invokeTooltipAtSelectedElm2()
-        window.showTooltip2(EFDRC.tooltip.ev, EFDRC.tooltip.tt, EFDRC.tooltip.el)
+        window.showTooltip2(EFDRCE.tooltip.ev, EFDRCE.tooltip.tt, EFDRCE.tooltip.el)
       }
     }
 
     const qEl = document.getElementById('qa')
     if (qEl !== null) {
-      qEl.setAttribute('data-efdrc-editing', 'true')
+      qEl.setAttribute('data-efdrce-editing', 'true')
     }
 
-    const fld = target.getAttribute('data-EFDRCfield')
-    window.pycmd('EFDRC!focuson#' + fld)
+    const fld = target.getAttribute('data-EFDRCEfield')
+    window.pycmd('EFDRCE!focuson#' + fld)
   }
 
-  EFDRC.handleBlur = function (event, target) {
+  EFDRCE.handleBlur = function (event, target) {
     if (typeof showTooltip2 === 'function') {
       // Restore Popup Dictionary
       window.showTooltip = window.showTooltip2
@@ -128,19 +128,19 @@
 
     const qEl = document.getElementById('qa')
     if (qEl !== null) {
-      qEl.removeAttribute('data-efdrc-editing')
+      qEl.removeAttribute('data-efdrce-editing')
     }
 
     const el = target
-    if (EFDRC.CONF.remove_span) {
+    if (EFDRCE.CONF.remove_span) {
       removeSpan(el)
     }
     el.setAttribute('contenteditable', 'false')
-    if (el.hasAttribute('data-EFDRCnid')) {
-      EFDRC.cleanResize(el)
-      window.pycmd('EFDRC#' + el.getAttribute('data-EFDRCnid') + '#' + el.getAttribute('data-EFDRCfield') + '#' + el.innerHTML)
+    if (el.hasAttribute('data-EFDRCEnid')) {
+      EFDRCE.cleanResize(el)
+      window.pycmd('EFDRCE#' + el.getAttribute('data-EFDRCEnid') + '#' + el.getAttribute('data-EFDRCEfield') + '#' + el.innerHTML)
     }
-    window.pycmd('EFDRC!reload')
+    window.pycmd('EFDRCE!reload')
   }
 
   /* Shortcuts */
@@ -178,10 +178,10 @@
     }
     scutInfo.key = mainKey
     scutInfo.handler = handler
-    EFDRC.shortcuts.push(scutInfo)
+    EFDRCE.shortcuts.push(scutInfo)
   }
   // Expose registerShortcut to notetype JS
-  EFDRC.registerShortcut = registerShortcut
+  EFDRCE.registerShortcut = registerShortcut
 
   const matchShortcut = function (event, scutInfo) {
     if (scutInfo.key !== event.code.toLowerCase()) return false
@@ -192,8 +192,8 @@
   }
 
   const registerFormattingShortcut = function () {
-    for (const key in EFDRC.CONF.special_formatting) {
-      const format = EFDRC.CONF.special_formatting[key]
+    for (const key in EFDRCE.CONF.special_formatting) {
+      const format = EFDRCE.CONF.special_formatting[key]
       if (!format.enabled) {
         continue
       }
@@ -214,42 +214,42 @@
 
   window.addEventListener('keydown', function (ev) {
     if (isCtrlKey(ev.code)) {
-      EFDRC.ctrldown()
+      EFDRCE.ctrldown()
     }
   })
 
   window.addEventListener('keyup', function (ev) {
     if (isCtrlKey(ev.code)) {
-      EFDRC.ctrlup()
+      EFDRCE.ctrlup()
     }
   })
 
   /* Called from reviewer.py */
-  EFDRC.registerConfig = function (confStr) {
-    EFDRC.CONF = JSON.parse(confStr)
-    EFDRC.CONF.span = (EFDRC.CONF.tag === 'span')
-    EFDRC.resizeImageMode = EFDRC.CONF.resize_image_default_state
+  EFDRCE.registerConfig = function (confStr) {
+    EFDRCE.CONF = JSON.parse(confStr)
+    EFDRCE.CONF.span = (EFDRCE.CONF.tag === 'span')
+    EFDRCE.resizeImageMode = EFDRCE.CONF.resize_image_default_state
   }
 
-  EFDRC.setupReviewer = function () {
+  EFDRCE.setupReviewer = function () {
     // image resizer
-    registerShortcut(EFDRC.CONF.shortcuts['image-resize'], (event) => {
-      EFDRC.resizeImageMode = !EFDRC.resizeImageMode
-      EFDRC.maybeResizeOrClean()
+    registerShortcut(EFDRCE.CONF.shortcuts['image-resize'], (event) => {
+      EFDRCE.resizeImageMode = !EFDRCE.resizeImageMode
+      EFDRCE.maybeResizeOrClean()
     })
-    registerShortcut(EFDRC.CONF.shortcuts.cloze, (event, el) => {
+    registerShortcut(EFDRCE.CONF.shortcuts.cloze, (event, el) => {
       wrapCloze(event, el, false)
     })
-    registerShortcut(EFDRC.CONF.shortcuts['cloze-alt'], (event, el) => {
+    registerShortcut(EFDRCE.CONF.shortcuts['cloze-alt'], (event, el) => {
       wrapCloze(event, el, true)
     })
     registerShortcut('Backspace', (event, el) => {
-      if (EFDRC.CONF.span) return
-      if (EFDRC.CONF.remove_span) setTimeout(() => removeSpan(el), 0)
+      if (EFDRCE.CONF.span) return
+      if (EFDRCE.CONF.remove_span) setTimeout(() => removeSpan(el), 0)
       return -1
     })
     registerShortcut('Delete', (event, el) => {
-      if (EFDRC.CONF.remove_span) setTimeout(() => removeSpan(el), 0)
+      if (EFDRCE.CONF.remove_span) setTimeout(() => removeSpan(el), 0)
       return -1
     })
     registerShortcut('Escape', (event, el) => {
@@ -267,32 +267,32 @@
     ['onkeypress', 'handleKeyPress']
   ]
 
-  EFDRC.serveCard = function () { // fld: string
-    const els = document.querySelectorAll('[data-EFDRCfield]')
+  EFDRCE.serveCard = function () { // fld: string
+    const els = document.querySelectorAll('[data-EFDRCEfield]')
     for (const el of els) {
-      if (EFDRC.CONF.ctrl_click) {
-        const fldName = b64DecodeUnicode(el.getAttribute('data-EFDRCfield'))
+      if (EFDRCE.CONF.ctrl_click) {
+        const fldName = b64DecodeUnicode(el.getAttribute('data-EFDRCEfield'))
         el.setAttribute('data-placeholder', fldName)
       } else {
         el.setAttribute('contenteditable', 'true')
       }
       for (const handlerInfo of handlers) {
-        el.setAttribute(handlerInfo[0], `EFDRC.${handlerInfo[1]}(event, this)`)
+        el.setAttribute(handlerInfo[0], `EFDRCE.${handlerInfo[1]}(event, this)`)
       }
     }
   }
 
-  EFDRC.ctrldown = function () {
-    if (EFDRC.CONF.ctrl_click) {
-      // Set 'data-EFDRC-ctrl' attribute on '#q' element
+  EFDRCE.ctrldown = function () {
+    if (EFDRCE.CONF.ctrl_click) {
+      // Set 'data-EFDRCE-ctrl' attribute on '#q' element
       // which is reset when card or side changes.
       // It can be used for styling in note type templates
       const qEl = document.getElementById('qa')
       if (qEl !== null) {
-        qEl.setAttribute('data-efdrc-ctrl', 'true')
+        qEl.setAttribute('data-efdrce-ctrl', 'true')
       }
 
-      const els = document.querySelectorAll('[data-EFDRCfield]')
+      const els = document.querySelectorAll('[data-EFDRCEfield]')
       for (const el of els) {
         el.setAttribute('contenteditable', 'true')
       }
@@ -301,14 +301,14 @@
     }
   }
 
-  EFDRC.ctrlup = function () {
-    if (EFDRC.CONF.ctrl_click) {
+  EFDRCE.ctrlup = function () {
+    if (EFDRCE.CONF.ctrl_click) {
       const qEl = document.getElementById('qa')
       if (qEl !== null) {
-        qEl.removeAttribute('data-efdrc-ctrl')
+        qEl.removeAttribute('data-efdrce-ctrl')
       }
 
-      const els = document.querySelectorAll('[data-EFDRCfield]')
+      const els = document.querySelectorAll('[data-EFDRCEfield]')
       for (const el of els) {
         if (el !== document.activeElement) {
           el.setAttribute('contenteditable', 'false')
@@ -319,16 +319,16 @@
     }
   }
 
-  EFDRC.showRawField = function (encoded, nid, fld) {
+  EFDRCE.showRawField = function (encoded, nid, fld) {
     const val = b64DecodeUnicode(encoded)
-    const elems = document.querySelectorAll(`[data-EFDRCfield='${fld}']`)
+    const elems = document.querySelectorAll(`[data-EFDRCEfield='${fld}']`)
     for (let e = 0; e < elems.length; e++) {
       const elem = elems[e]
       if (elem.innerHTML !== val) {
         elem.innerHTML = val
       }
-      elem.setAttribute('data-EFDRCnid', nid)
+      elem.setAttribute('data-EFDRCEnid', nid)
     }
-    EFDRC.maybeResizeOrClean(true)
+    EFDRCE.maybeResizeOrClean(true)
   }
 })()

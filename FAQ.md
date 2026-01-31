@@ -82,14 +82,14 @@ Yes. Go to the Advanced config editor. In `special_formatting`, copy an entry an
 
 ### How do I apply styles to editable field html?
 
-Use the CSS selector `div[data-efdrcfield]` (or `span[data-efdrcfield]` depending on your config).
+Use the CSS selector `div[data-efdrcefield]` (or `span[data-efdrcefield]` depending on your config).
 
 ### How do I align fields next to each other?
 
 Add this to your note type template styling:
 
 ```css
-div[data-efdrcfield] {
+div[data-efdrcefield] {
   display: inline-block;
 }
 ```
@@ -99,7 +99,7 @@ div[data-efdrcfield] {
 Add this JavaScript to your note type template:
 
 ```javascript
-EFDRC.registerShortcut("Ctrl+Shift+Alt+X", (event, elem) => {
+EFDRCE.registerShortcut("Ctrl+Shift+Alt+X", (event, elem) => {
   // event: KeyEvent, elem: contenteditable field element
   // Your custom code here
 })
@@ -122,8 +122,8 @@ Add to Styling:
   display: none;
 }
 
-[data-efdrc-ctrl] .hidden,
-[data-efdrc-editing] .hidden {
+[data-efdrce-ctrl] .hidden,
+[data-efdrce-editing] .hidden {
   display: block;
 }
 ```

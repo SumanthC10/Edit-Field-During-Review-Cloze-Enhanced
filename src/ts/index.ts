@@ -15,11 +15,11 @@ export function setFormat(
 
 declare global {
   interface Window {
-    EFDRC: any;
+    EFDRCE: any;
   }
 }
 
-window.EFDRC.pasteHTML = function (
+window.EFDRCE.pasteHTML = function (
   html: string,
   internal: boolean,
   extendedMode: boolean
@@ -31,4 +31,4 @@ window.EFDRC.pasteHTML = function (
   }
 };
 
-window.EFDRC.wrapInternal = wrapInternal;
+window.EFDRCE.wrapInternal = wrapInternal;

@@ -1,6 +1,6 @@
 {
-  "package": "edit-field-during-review-cloze",
-  "name": "Edit Field During Review (Cloze)",
+  "package": "edit-field-during-review-cloze-enhanced",
+  "name": "Edit Field During Review - Cloze Enhanced",
   "human_version": "6.23",
   "conflicts": [
     "1020366288"

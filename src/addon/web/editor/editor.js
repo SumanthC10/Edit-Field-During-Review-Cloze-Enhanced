@@ -263,13 +263,13 @@
         // modified - removed saveField call
         document.execCommand(cmd, false, arg);
     }
-    window.EFDRC.pasteHTML = function (html, internal, extendedMode) {
+    window.EFDRCE.pasteHTML = function (html, internal, extendedMode) {
         html = filterHTML(html, internal, extendedMode);
         if (html !== "") {
             setFormat("inserthtml", html);
         }
     };
-    window.EFDRC.wrapInternal = wrapInternal;
+    window.EFDRCE.wrapInternal = wrapInternal;
 
     exports.setFormat = setFormat;
 

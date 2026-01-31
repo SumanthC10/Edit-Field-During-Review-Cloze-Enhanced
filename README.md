@@ -106,7 +106,7 @@ After cloning the repo, go into the repo directory and run the following command
 ```
 git submodule update --init --remote src/addon/ankiaddonconfig
 ```
-After installing the git submodule, run the following command to create an `efdrc.ankiaddon` file
+After installing the git submodule, run the following command to create the `.ankiaddon` file
 ```
-cd src/addon ; zip -r ../../efdrc.ankiaddon * ; cd ../../
+cd src/addon ; zip -r ../../edit-field-during-review-cloze-enhanced.ankiaddon * ; cd ../../
 ```

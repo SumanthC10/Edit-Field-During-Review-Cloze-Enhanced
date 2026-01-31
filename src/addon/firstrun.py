@@ -201,7 +201,7 @@ if version == "-1.-1":
     initial_tutorial()
 
 # Save current version
-version_string = os.environ.get("EFDRC_VERSION")
+version_string = os.environ.get("EFDRCE_VERSION")
 if not version_string:
     addon_dir = mw.addonManager.addonFromModule(__name__)
     meta = mw.addonManager.addonMeta(addon_dir)

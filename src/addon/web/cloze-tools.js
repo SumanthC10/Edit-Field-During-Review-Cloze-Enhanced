@@ -1,9 +1,9 @@
 /**
- * Cloze Tools for EFDRC
+ * Cloze Tools for EFDRCE
  * Provides cloze manipulation features: removal and numbering
  */
 (function () {
-  const EFDRC = window.EFDRC
+  const EFDRCE = window.EFDRCE
 
   // Regex to match cloze deletions: {{c1::content}} or {{c1::content::hint}}
   const CLOZE_REGEX = /\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}/g
@@ -371,7 +371,7 @@
     hideRenumberPopup()
 
     renumberPopup = document.createElement('div')
-    renumberPopup.id = 'efdrc-renumber-popup'
+    renumberPopup.id = 'efdrce-renumber-popup'
     renumberPopup.innerHTML = `
       <div style="
         position: fixed;
@@ -749,10 +749,10 @@
    * Show a brief toast message that auto-dismisses.
    */
   function showMoveToast(message) {
-    const existing = document.getElementById('efdrc-move-toast')
+    const existing = document.getElementById('efdrce-move-toast')
     if (existing) existing.remove()
     const toast = document.createElement('div')
-    toast.id = 'efdrc-move-toast'
+    toast.id = 'efdrce-move-toast'
     toast.textContent = message
     toast.style.cssText = `
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -1026,12 +1026,12 @@
   function showClozeOverlay(elem) {
     if (!clozeOverlayEnabled) return
 
-    const fieldId = elem.getAttribute('data-EFDRCfield')
+    const fieldId = elem.getAttribute('data-EFDRCEfield')
     clozeOverlayFieldId = fieldId
 
     if (!clozeOverlay) {
       clozeOverlay = document.createElement('div')
-      clozeOverlay.id = 'efdrc-cloze-overlay'
+      clozeOverlay.id = 'efdrce-cloze-overlay'
       clozeOverlay.style.cssText = `
         position: fixed;
         bottom: 10px;
@@ -1073,7 +1073,7 @@
     const counts = {}
     let hasEmpty = false
     let hasLong = false
-    const maxLength = EFDRC.CONF?.cloze_tools?.max_cloze_length || 50
+    const maxLength = EFDRCE.CONF?.cloze_tools?.max_cloze_length || 50
 
     for (const cloze of allClozes) {
       counts[cloze.number] = (counts[cloze.number] || 0) + 1
@@ -1121,10 +1121,10 @@
     clozeOverlayEnabled = !clozeOverlayEnabled
 
     // Find active field if not provided
-    if (!elem || !elem.hasAttribute || !elem.hasAttribute('data-EFDRCfield')) {
-      elem = document.querySelector('[data-EFDRCfield][contenteditable="true"]:focus')
+    if (!elem || !elem.hasAttribute || !elem.hasAttribute('data-EFDRCEfield')) {
+      elem = document.querySelector('[data-EFDRCEfield][contenteditable="true"]:focus')
       if (!elem) {
-        elem = document.querySelector('[data-EFDRCfield]')
+        elem = document.querySelector('[data-EFDRCEfield]')
       }
     }
 
@@ -1141,7 +1141,7 @@
   function onSelectionChange() {
     if (!clozeOverlayEnabled || !clozeOverlayFieldId) return
 
-    const elem = document.querySelector(`[data-EFDRCfield="${clozeOverlayFieldId}"]`)
+    const elem = document.querySelector(`[data-EFDRCEfield="${clozeOverlayFieldId}"]`)
     if (elem && document.activeElement === elem) {
       updateClozeOverlay(elem)
     }
@@ -1156,7 +1156,7 @@
    * Setup visual features when field gains focus
    */
   function setupVisualFeatures(elem) {
-    const autoShow = EFDRC.CONF?.cloze_tools?.auto_show_overlay
+    const autoShow = EFDRCE.CONF?.cloze_tools?.auto_show_overlay
     if (autoShow || clozeOverlayEnabled) {
       clozeOverlayEnabled = true
       showClozeOverlay(elem)
@@ -1208,11 +1208,11 @@
   }
 
   function showToast(message) {
-    const existing = document.getElementById('efdrc-toast')
+    const existing = document.getElementById('efdrce-toast')
     if (existing) existing.remove()
 
     const toast = document.createElement('div')
-    toast.id = 'efdrc-toast'
+    toast.id = 'efdrce-toast'
     toast.textContent = message
     toast.style.cssText = `
       position: fixed;
@@ -1256,7 +1256,7 @@
     const clozeNums = [...new Set(allClozes.map(c => c.number))].sort((a, b) => a - b)
 
     previewPopup = document.createElement('div')
-    previewPopup.id = 'efdrc-preview-popup'
+    previewPopup.id = 'efdrce-preview-popup'
     previewPopup.style.cssText = `
       position: fixed;
       top: 50%;
@@ -1348,7 +1348,7 @@
     hideFindReplace()
 
     findReplacePopup = document.createElement('div')
-    findReplacePopup.id = 'efdrc-find-replace-popup'
+    findReplacePopup.id = 'efdrce-find-replace-popup'
     findReplacePopup.style.cssText = `
       position: fixed;
       top: 50%;
@@ -1370,7 +1370,7 @@
         Find & Replace in Clozes
       </div>
       <div style="margin-bottom: 14px;">
-        <input type="text" id="efdrc-find-input" style="
+        <input type="text" id="efdrce-find-input" style="
           width: 100%;
           padding: 10px 12px;
           border: none;
@@ -1383,7 +1383,7 @@
         " placeholder="Find...">
       </div>
       <div style="margin-bottom: 16px;">
-        <input type="text" id="efdrc-replace-input" style="
+        <input type="text" id="efdrce-replace-input" style="
           width: 100%;
           padding: 10px 12px;
           border: none;
@@ -1396,7 +1396,7 @@
         " placeholder="Replace with...">
       </div>
       <div style="display: flex; gap: 10px; justify-content: flex-end;">
-        <button id="efdrc-cancel-btn" style="
+        <button id="efdrce-cancel-btn" style="
           padding: 8px 16px;
           border: none;
           border-radius: 6px;
@@ -1406,7 +1406,7 @@
           font-size: 13px;
           font-weight: 500;
         ">Cancel</button>
-        <button id="efdrc-replace-all-btn" style="
+        <button id="efdrce-replace-all-btn" style="
           padding: 8px 16px;
           border: none;
           border-radius: 6px;
@@ -1417,16 +1417,16 @@
           font-size: 13px;
         ">Replace All</button>
       </div>
-      <div id="efdrc-replace-result" style="margin-top: 12px; font-size: 12px; color: #888; text-align: center;"></div>
+      <div id="efdrce-replace-result" style="margin-top: 12px; font-size: 12px; color: #888; text-align: center;"></div>
     `
 
     document.body.appendChild(findReplacePopup)
 
-    const findInput = document.getElementById('efdrc-find-input')
-    const replaceInput = document.getElementById('efdrc-replace-input')
-    const replaceBtn = document.getElementById('efdrc-replace-all-btn')
-    const cancelBtn = document.getElementById('efdrc-cancel-btn')
-    const resultDiv = document.getElementById('efdrc-replace-result')
+    const findInput = document.getElementById('efdrce-find-input')
+    const replaceInput = document.getElementById('efdrce-replace-input')
+    const replaceBtn = document.getElementById('efdrce-replace-all-btn')
+    const cancelBtn = document.getElementById('efdrce-cancel-btn')
+    const resultDiv = document.getElementById('efdrce-replace-result')
 
     findInput.focus()
 
@@ -1490,7 +1490,7 @@
    * Highlights: bold/italic text, Capitalized Words, numbers, dates
    */
   function toggleClozeSuggestions(event, elem) {
-    if (suggestionsEnabled && suggestionsFieldId === elem.getAttribute('data-EFDRCfield')) {
+    if (suggestionsEnabled && suggestionsFieldId === elem.getAttribute('data-EFDRCEfield')) {
       // Turn off - restore original HTML
       hideSuggestions(elem)
     } else {
@@ -1501,7 +1501,7 @@
 
   function showSuggestions(elem) {
     // Store original state
-    suggestionsFieldId = elem.getAttribute('data-EFDRCfield')
+    suggestionsFieldId = elem.getAttribute('data-EFDRCEfield')
     originalFieldHtml = elem.innerHTML
     suggestionsEnabled = true
 
@@ -1542,10 +1542,10 @@
     // First, highlight content inside bold/italic/underline tags
     text = text.replace(/(<(?:b|strong|i|em|u)(?:\s[^>]*)?>)(.*?)(<\/(?:b|strong|i|em|u)>)/gi, (match, openTag, content, closeTag) => {
       // Don't double-highlight if already wrapped
-      if (content.includes('efdrc-suggestion')) return match
+      if (content.includes('efdrce-suggestion')) return match
       const plainContent = content.replace(/<[^>]+>/g, '').trim()
       if (!plainContent) return match
-      return `${openTag}<span class="efdrc-suggestion" style="background: rgba(255, 215, 0, 0.3); border-radius: 2px; cursor: pointer;" data-suggestion-type="formatted">${content}</span>${closeTag}`
+      return `${openTag}<span class="efdrce-suggestion" style="background: rgba(255, 215, 0, 0.3); border-radius: 2px; cursor: pointer;" data-suggestion-type="formatted">${content}</span>${closeTag}`
     })
 
     // Then process remaining text between tags
@@ -1624,7 +1624,7 @@
     let pos = 0
     for (const h of highlights) {
       result += text.substring(pos, h.start)
-      result += `<span class="efdrc-suggestion" style="background: rgba(255, 215, 0, 0.3); border-radius: 2px; cursor: pointer;" data-suggestion-type="${h.type}">${h.text}</span>`
+      result += `<span class="efdrce-suggestion" style="background: rgba(255, 215, 0, 0.3); border-radius: 2px; cursor: pointer;" data-suggestion-type="${h.type}">${h.text}</span>`
       pos = h.end
     }
     result += text.substring(pos)
@@ -1633,11 +1633,11 @@
   }
 
   function showSuggestionsToast(message) {
-    const existing = document.getElementById('efdrc-suggestions-toast')
+    const existing = document.getElementById('efdrce-suggestions-toast')
     if (existing) existing.remove()
 
     const toast = document.createElement('div')
-    toast.id = 'efdrc-suggestions-toast'
+    toast.id = 'efdrce-suggestions-toast'
     toast.textContent = message
     toast.style.cssText = `
       position: fixed;
@@ -1679,7 +1679,7 @@
   let savedSelectionRange = null
 
   function getCommands() {
-    const shortcuts = EFDRC.CONF?.cloze_tools?.shortcuts || {}
+    const shortcuts = EFDRCE.CONF?.cloze_tools?.shortcuts || {}
     return [
       { name: 'Remove Cloze', desc: 'Remove cloze at cursor or selection', shortcut: shortcuts.remove_single, action: removeClozeAtCursorOrSelection },
       { name: 'Remove All Clozes', desc: 'Remove all cloze markup from field', shortcut: shortcuts.remove_all, action: removeAllClozesInField },
@@ -1721,8 +1721,8 @@
 
   function renderPalette() {
     if (!commandPalettePopup) return
-    const searchDisplay = commandPalettePopup.querySelector('#efdrc-palette-search-display')
-    const resultsDiv = commandPalettePopup.querySelector('#efdrc-palette-results')
+    const searchDisplay = commandPalettePopup.querySelector('#efdrce-palette-search-display')
+    const resultsDiv = commandPalettePopup.querySelector('#efdrce-palette-results')
     if (!searchDisplay || !resultsDiv) return
 
     // Update search display
@@ -1740,7 +1740,7 @@
     }
 
     resultsDiv.innerHTML = filtered.map((cmd, i) => `
-      <div class="efdrc-palette-item" data-index="${i}" style="
+      <div class="efdrce-palette-item" data-index="${i}" style="
         padding: 10px 16px;
         cursor: pointer;
         display: flex;
@@ -1758,7 +1758,7 @@
     `).join('')
 
     // Click handlers — use mousedown to prevent field blur
-    resultsDiv.querySelectorAll('.efdrc-palette-item').forEach((item, idx) => {
+    resultsDiv.querySelectorAll('.efdrce-palette-item').forEach((item, idx) => {
       item.addEventListener('mousedown', (e) => {
         e.preventDefault()
         e.stopPropagation()
@@ -1766,7 +1766,7 @@
       })
       item.addEventListener('mouseenter', () => {
         selectedCommandIndex = idx
-        const items = resultsDiv.querySelectorAll('.efdrc-palette-item')
+        const items = resultsDiv.querySelectorAll('.efdrce-palette-item')
         items.forEach((el, j) => {
           el.style.background = j === idx ? '#3a3a3a' : 'transparent'
         })
@@ -1774,7 +1774,7 @@
     })
 
     // Scroll selected into view
-    const selected = resultsDiv.querySelectorAll('.efdrc-palette-item')[selectedCommandIndex]
+    const selected = resultsDiv.querySelectorAll('.efdrce-palette-item')[selectedCommandIndex]
     if (selected) selected.scrollIntoView({ block: 'nearest' })
   }
 
@@ -1815,7 +1815,7 @@
     }
 
     commandPalettePopup = document.createElement('div')
-    commandPalettePopup.id = 'efdrc-command-palette'
+    commandPalettePopup.id = 'efdrce-command-palette'
     commandPalettePopup.style.cssText = `
       position: fixed;
       top: 20%;
@@ -1835,7 +1835,7 @@
 
     commandPalettePopup.innerHTML = `
       <div style="padding: 12px;">
-        <div id="efdrc-palette-search-display" style="
+        <div id="efdrce-palette-search-display" style="
           width: 100%;
           padding: 10px 12px;
           border: none;
@@ -1848,7 +1848,7 @@
           text-align: left;
         ">Type to search commands...</div>
       </div>
-      <div id="efdrc-palette-results" style="
+      <div id="efdrce-palette-results" style="
         max-height: calc(60vh - 60px);
         overflow-y: auto;
         padding-bottom: 8px;
@@ -1950,7 +1950,7 @@
    */
   function replayQuestion(event, elem) {
     // Just show the question directly - edits are saved on blur automatically
-    pycmd('EFDRC!showQuestion')
+    pycmd('EFDRCE!showQuestion')
   }
 
   // ============ HINT FUNCTIONS ============
@@ -2030,13 +2030,13 @@
   function showHintPreview(elem, cloze, clozeIndex) {
     hideHintPreview()
 
-    hintPreviewFieldId = elem.getAttribute('data-EFDRCfield')
+    hintPreviewFieldId = elem.getAttribute('data-EFDRCEfield')
     hintPreviewClozeIndex = clozeIndex
     hintPreviewOriginalHtml = elem.innerHTML
     hintPreviewClozeNumber = cloze.number
 
     hintPreviewElem = document.createElement('div')
-    hintPreviewElem.id = 'efdrc-hint-preview-float'
+    hintPreviewElem.id = 'efdrce-hint-preview-float'
     hintPreviewElem.innerHTML = `
       <div style="
         position: fixed;
@@ -2055,7 +2055,7 @@
         border: 1px solid rgba(255,255,255,0.1);
       ">
         <div style="color: #888; font-size: 11px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Card Preview (c${cloze.number}) - Esc to close</div>
-        <div id="efdrc-hint-preview-content" style="
+        <div id="efdrce-hint-preview-content" style="
           font-size: 14px;
           line-height: 1.5;
           word-break: break-word;
@@ -2076,7 +2076,7 @@
   function hideHintPreview() {
     if (hintPreviewElem) {
       // Remove listeners from field
-      const elem = document.querySelector(`[data-EFDRCfield="${hintPreviewFieldId}"]`)
+      const elem = document.querySelector(`[data-EFDRCEfield="${hintPreviewFieldId}"]`)
       if (elem) {
         elem.removeEventListener('input', handleHintTyping)
         elem.removeEventListener('keydown', handleHintKeydown)
@@ -2092,7 +2092,7 @@
   }
 
   function handleHintTyping() {
-    const elem = document.querySelector(`[data-EFDRCfield="${hintPreviewFieldId}"]`)
+    const elem = document.querySelector(`[data-EFDRCEfield="${hintPreviewFieldId}"]`)
     if (elem) {
       updateFloatingHintPreview(elem)
     }
@@ -2104,7 +2104,7 @@
     } else if (event.key === 'Enter') {
       event.preventDefault()
       // Get current field and find the cloze to position cursor after it
-      const elem = document.querySelector(`[data-EFDRCfield="${hintPreviewFieldId}"]`)
+      const elem = document.querySelector(`[data-EFDRCEfield="${hintPreviewFieldId}"]`)
       if (elem) {
         const allClozes = getAllClozes(elem)
         const cloze = allClozes[hintPreviewClozeIndex]
@@ -2130,7 +2130,7 @@
   }
 
   function updateFloatingHintPreview(elem) {
-    const preview = document.getElementById('efdrc-hint-preview-content')
+    const preview = document.getElementById('efdrce-hint-preview-content')
     if (!preview) return
 
     const html = elem.innerHTML
@@ -2224,11 +2224,11 @@
   /**
    * Register cloze tool shortcuts from config
    */
-  EFDRC.setupClozeTools = function () {
+  EFDRCE.setupClozeTools = function () {
     // Initialize overlay state from config
-    clozeOverlayEnabled = EFDRC.CONF?.cloze_tools?.auto_show_overlay || false
+    clozeOverlayEnabled = EFDRCE.CONF?.cloze_tools?.auto_show_overlay || false
 
-    const shortcuts = EFDRC.CONF.cloze_tools?.shortcuts
+    const shortcuts = EFDRCE.CONF.cloze_tools?.shortcuts
     if (!shortcuts) return
 
     // Wrap modifying functions so undo state is saved automatically
@@ -2240,136 +2240,136 @@
     }
 
     if (shortcuts.remove_single) {
-      EFDRC.registerShortcut(shortcuts.remove_single, withUndo(removeClozeAtCursorOrSelection))
+      EFDRCE.registerShortcut(shortcuts.remove_single, withUndo(removeClozeAtCursorOrSelection))
     }
 
     if (shortcuts.remove_all) {
-      EFDRC.registerShortcut(shortcuts.remove_all, withUndo(removeAllClozesInField))
+      EFDRCE.registerShortcut(shortcuts.remove_all, withUndo(removeAllClozesInField))
     }
 
     if (shortcuts.remove_same_number) {
-      EFDRC.registerShortcut(shortcuts.remove_same_number, withUndo(removeClozesOfSameNumber))
+      EFDRCE.registerShortcut(shortcuts.remove_same_number, withUndo(removeClozesOfSameNumber))
     }
 
     // Numbering shortcuts
     if (shortcuts.increment) {
-      EFDRC.registerShortcut(shortcuts.increment, withUndo(incrementClozeNumber))
+      EFDRCE.registerShortcut(shortcuts.increment, withUndo(incrementClozeNumber))
     }
 
     if (shortcuts.decrement) {
-      EFDRC.registerShortcut(shortcuts.decrement, withUndo(decrementClozeNumber))
+      EFDRCE.registerShortcut(shortcuts.decrement, withUndo(decrementClozeNumber))
     }
 
     if (shortcuts.renumber) {
-      EFDRC.registerShortcut(shortcuts.renumber, withUndo(startRenumberSequence))
+      EFDRCE.registerShortcut(shortcuts.renumber, withUndo(startRenumberSequence))
     }
 
     // Hint shortcuts
     if (shortcuts.add_hint) {
-      EFDRC.registerShortcut(shortcuts.add_hint, withUndo(addHint))
+      EFDRCE.registerShortcut(shortcuts.add_hint, withUndo(addHint))
     }
 
     if (shortcuts.remove_hint) {
-      EFDRC.registerShortcut(shortcuts.remove_hint, withUndo(removeHint))
+      EFDRCE.registerShortcut(shortcuts.remove_hint, withUndo(removeHint))
     }
 
     if (shortcuts.word_count_hint) {
-      EFDRC.registerShortcut(shortcuts.word_count_hint, withUndo(addWordCountHint))
+      EFDRCE.registerShortcut(shortcuts.word_count_hint, withUndo(addWordCountHint))
     }
 
     if (shortcuts.hint_from_selection) {
-      EFDRC.registerShortcut(shortcuts.hint_from_selection, withUndo(hintFromSelection))
+      EFDRCE.registerShortcut(shortcuts.hint_from_selection, withUndo(hintFromSelection))
     }
 
     // Card navigation - register both on field and globally
     if (shortcuts.replay_question) {
-      EFDRC.registerShortcut(shortcuts.replay_question, replayQuestion)
+      EFDRCE.registerShortcut(shortcuts.replay_question, replayQuestion)
       setupGlobalReplayShortcut(shortcuts.replay_question)
     }
 
     // Structure shortcuts
     if (shortcuts.split_cloze) {
-      EFDRC.registerShortcut(shortcuts.split_cloze, withUndo(splitCloze))
+      EFDRCE.registerShortcut(shortcuts.split_cloze, withUndo(splitCloze))
     }
 
     if (shortcuts.merge_clozes) {
-      EFDRC.registerShortcut(shortcuts.merge_clozes, withUndo(mergeClozes))
+      EFDRCE.registerShortcut(shortcuts.merge_clozes, withUndo(mergeClozes))
     }
 
     if (shortcuts.move_out_of_cloze) {
-      EFDRC.registerShortcut(shortcuts.move_out_of_cloze, withUndo(moveOutOfCloze))
+      EFDRCE.registerShortcut(shortcuts.move_out_of_cloze, withUndo(moveOutOfCloze))
     }
 
     if (shortcuts.move_into_cloze) {
-      EFDRC.registerShortcut(shortcuts.move_into_cloze, moveIntoCloze)
+      EFDRCE.registerShortcut(shortcuts.move_into_cloze, moveIntoCloze)
     }
 
     if (shortcuts.image_to_cloze) {
-      EFDRC.registerShortcut(shortcuts.image_to_cloze, withUndo(imageToClose))
+      EFDRCE.registerShortcut(shortcuts.image_to_cloze, withUndo(imageToClose))
     }
 
     // Navigation shortcuts
     if (shortcuts.jump_next_cloze) {
-      EFDRC.registerShortcut(shortcuts.jump_next_cloze, jumpToNextCloze)
+      EFDRCE.registerShortcut(shortcuts.jump_next_cloze, jumpToNextCloze)
     }
 
     if (shortcuts.jump_prev_cloze) {
-      EFDRC.registerShortcut(shortcuts.jump_prev_cloze, jumpToPrevCloze)
+      EFDRCE.registerShortcut(shortcuts.jump_prev_cloze, jumpToPrevCloze)
     }
 
     if (shortcuts.jump_to_beginning) {
-      EFDRC.registerShortcut(shortcuts.jump_to_beginning, jumpToBeginning)
+      EFDRCE.registerShortcut(shortcuts.jump_to_beginning, jumpToBeginning)
     }
 
     if (shortcuts.jump_to_end) {
-      EFDRC.registerShortcut(shortcuts.jump_to_end, jumpToEnd)
+      EFDRCE.registerShortcut(shortcuts.jump_to_end, jumpToEnd)
     }
 
     // Visual features
     if (shortcuts.toggle_overlay) {
-      EFDRC.registerShortcut(shortcuts.toggle_overlay, toggleClozeOverlay)
+      EFDRCE.registerShortcut(shortcuts.toggle_overlay, toggleClozeOverlay)
     }
 
     // Advanced editing
     if (shortcuts.copy_cloze_content) {
-      EFDRC.registerShortcut(shortcuts.copy_cloze_content, copyClozeContent)
+      EFDRCE.registerShortcut(shortcuts.copy_cloze_content, copyClozeContent)
     }
 
     if (shortcuts.preview_card) {
-      EFDRC.registerShortcut(shortcuts.preview_card, showCardPreview)
+      EFDRCE.registerShortcut(shortcuts.preview_card, showCardPreview)
     }
 
     if (shortcuts.find_replace) {
-      EFDRC.registerShortcut(shortcuts.find_replace, withUndo(showFindReplace))
+      EFDRCE.registerShortcut(shortcuts.find_replace, withUndo(showFindReplace))
     }
 
     // Smart features
     if (shortcuts.suggest_clozes) {
-      EFDRC.registerShortcut(shortcuts.suggest_clozes, withUndo(toggleClozeSuggestions))
+      EFDRCE.registerShortcut(shortcuts.suggest_clozes, withUndo(toggleClozeSuggestions))
     }
 
     // UI
     if (shortcuts.command_palette) {
-      EFDRC.registerShortcut(shortcuts.command_palette, showCommandPalette)
+      EFDRCE.registerShortcut(shortcuts.command_palette, showCommandPalette)
       setupGlobalCommandPalette(shortcuts.command_palette)
     }
   }
 
   // Hook into field focus/blur for visual features
-  const originalHandleFocus = EFDRC.handleFocus
-  EFDRC.handleFocus = function(event, target) {
+  const originalHandleFocus = EFDRCE.handleFocus
+  EFDRCE.handleFocus = function(event, target) {
     originalHandleFocus(event, target)
     setupVisualFeatures(target)
   }
 
-  const originalHandleBlur = EFDRC.handleBlur
-  EFDRC.handleBlur = function(event, target) {
+  const originalHandleBlur = EFDRCE.handleBlur
+  EFDRCE.handleBlur = function(event, target) {
     cleanupVisualFeatures(target)
     originalHandleBlur(event, target)
   }
 
   /**
-   * Parse shortcut string into scutInfo object (same format as EFDRC.shortcuts)
+   * Parse shortcut string into scutInfo object (same format as EFDRCE.shortcuts)
    */
   function parseShortcut(shortcut) {
     const specialCharCodes = {
@@ -2433,8 +2433,8 @@
         event.preventDefault()
         event.stopPropagation()
         // Find an editable field to use
-        const field = document.querySelector('[data-EFDRCfield][contenteditable="true"]:focus') ||
-                      document.querySelector('[data-EFDRCfield]')
+        const field = document.querySelector('[data-EFDRCEfield][contenteditable="true"]:focus') ||
+                      document.querySelector('[data-EFDRCEfield]')
         if (field) {
           showCommandPalette(event, field)
         }
@@ -2451,7 +2451,7 @@
 
 
   // Expose helper functions for potential future use
-  EFDRC.clozeTools = {
+  EFDRCE.clozeTools = {
     getClozeAtCursor,
     getAllClozes,
     stripClozeMarkup,

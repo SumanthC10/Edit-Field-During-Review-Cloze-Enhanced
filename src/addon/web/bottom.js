@@ -5,17 +5,17 @@
 
 window.addEventListener('keydown', function (event) {
   if (['ControlLeft', 'MetaLeft'].includes(event.code)) {
-    window.pycmd('EFDRC!ctrldown')
+    window.pycmd('EFDRCE!ctrldown')
   }
 })
 
 window.addEventListener('keyup', function (event) {
   if (['ControlLeft', 'MetaLeft'].includes(event.code)) {
-    window.pycmd('EFDRC!ctrlup')
+    window.pycmd('EFDRCE!ctrlup')
   }
 })
 
-window.EFDRCResetTimer = function () {
+window.EFDRCEResetTimer = function () {
   // Reset timer from Speed Focus Mode add-on.
   if (typeof autoAnswerTimeout !== 'undefined') {
     clearTimeout(autoAnswerTimeout)

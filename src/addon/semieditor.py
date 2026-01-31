@@ -16,7 +16,7 @@ myprogress = False
 class SemiEditor(Editor):
     def __init__(self) -> None:
         self.mw = mw
-        self.parentWindow = "EFDRCsemiedit"  # type: ignore
+        self.parentWindow = "EFDRCEsemiedit"  # type: ignore
         
         # For compatibility with other addons (GH#125)
         self.currentField = None
@@ -40,7 +40,7 @@ def mystart(*args: Any, **kwargs: Any) -> Optional[ProgressDialog]:
     else:
         parent = None
 
-    if parent == "EFDRCsemiedit":
+    if parent == "EFDRCEsemiedit":
         # Don't show progress window when pasting images while in review.
         myprogress = True
         mw.app.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))

@@ -1,26 +1,26 @@
-/* global $, EFDRC */
+/* global $, EFDRCE */
 
 (function () {
-  EFDRC.priorImgs = []
+  EFDRCE.priorImgs = []
 
   const savePriorImg = function (img) {
-    const id = EFDRC.priorImgs.length
-    EFDRC.priorImgs.push(img.cloneNode())
-    img.setAttribute('data-EFDRCImgId', id)
+    const id = EFDRCE.priorImgs.length
+    EFDRCE.priorImgs.push(img.cloneNode())
+    img.setAttribute('data-EFDRCEImgId', id)
   }
 
   const restorePriorImg = function (img) {
     /*
         only save changes to width and height
-        resizable img is guranteed to have the data-EFDRCImgId attribute.
+        resizable img is guranteed to have the data-EFDRCEImgId attribute.
         if img was added during review, resizable isn't applied to it.
         */
     const width = img.style.width
     const height = img.style.height
 
     // apply stored style
-    const id = img.getAttribute('data-EFDRCImgId')
-    const priorImg = EFDRC.priorImgs[id]
+    const id = img.getAttribute('data-EFDRCEImgId')
+    const priorImg = EFDRCE.priorImgs[id]
     priorImg.style.width = width
     priorImg.style.height = height
 
@@ -28,9 +28,9 @@
   }
 
   const ratioShouldBePreserved = function (event) {
-    if (EFDRC.CONF.resize_image_preserve_ratio === 1 && event.originalEvent.target.classList.contains('ui-resizable-se')) {
+    if (EFDRCE.CONF.resize_image_preserve_ratio === 1 && event.originalEvent.target.classList.contains('ui-resizable-se')) {
       return true
-    } else if (EFDRC.CONF.resize_image_preserve_ratio === 2) {
+    } else if (EFDRCE.CONF.resize_image_preserve_ratio === 2) {
       return true
     } else {
       return false
@@ -41,7 +41,7 @@
     if (!img.naturalHeight) { return }
     const originalRatio = img.naturalWidth / img.naturalHeight
     const currentRatio = $img.width() / $img.height()
-    if (Math.abs(originalRatio - currentRatio) < 0.01 || EFDRC.CONF.resize_image_preserve_ratio === 2) {
+    if (Math.abs(originalRatio - currentRatio) < 0.01 || EFDRCE.CONF.resize_image_preserve_ratio === 2) {
       $img.css('height', '')
       if (ui) {
         ui.element.css('height', $img.height())
@@ -59,7 +59,7 @@
     $parents.css('height', '')
   }
 
-  EFDRC.resizeImage = async function (idx, img) {
+  EFDRCE.resizeImage = async function (idx, img) {
     while (!img.complete) {
       // wait for image to load
       await new Promise(resolve => setTimeout(resolve, 20))
@@ -69,7 +69,7 @@
 
     const $img = $(img)
     if ($img.resizable('instance') === undefined) { // just in case?
-      const aspRatio = (EFDRC.CONF.resize_image_preserve_ratio === 2)
+      const aspRatio = (EFDRCE.CONF.resize_image_preserve_ratio === 2)
       const computedStyle = window.getComputedStyle(img)
 
       $img.resizable({
@@ -118,28 +118,28 @@
     }
   }
 
-  EFDRC.cleanResize = function (field) {
+  EFDRCE.cleanResize = function (field) {
     const resizables = field.querySelectorAll('.ui-resizable')
     for (let x = 0; x < resizables.length; x++) {
       $(resizables[x]).resizable('destroy')
     }
-    const imgs = field.querySelectorAll('[data-EFDRCImgId]')
+    const imgs = field.querySelectorAll('[data-EFDRCEImgId]')
     for (const img of imgs) {
       maybeRemoveHeight(img, $(img))
       restorePriorImg(img)
     }
-    EFDRC.priorImgs = []
+    EFDRCE.priorImgs = []
   }
 
-  EFDRC.maybeResizeOrClean = function (focus) {
+  EFDRCE.maybeResizeOrClean = function (focus) {
     if (focus) {
       // Called from __init__.py on field focus. Else undefined.
-      EFDRC.resizeImageMode = EFDRC.CONF.resize_image_default_state
+      EFDRCE.resizeImageMode = EFDRCE.CONF.resize_image_default_state
     }
-    if (EFDRC.resizeImageMode) {
-      $(document.activeElement).find('img').each(EFDRC.resizeImage)
+    if (EFDRCE.resizeImageMode) {
+      $(document.activeElement).find('img').each(EFDRCE.resizeImage)
     } else {
-      EFDRC.cleanResize(document.activeElement)
+      EFDRCE.cleanResize(document.activeElement)
     }
   }
 })()
