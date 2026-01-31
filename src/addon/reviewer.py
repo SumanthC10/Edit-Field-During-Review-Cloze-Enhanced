@@ -297,7 +297,7 @@ def setup_menu():
     """Add menu items to Tools menu"""
     global overlay_action
     overlay_action = QAction("Show Cloze Info Overlay", mw)
-    overlay_action.setShortcut("Ctrl+Shift+Alt+O")
+    overlay_action.setShortcut("Ctrl+Shift+Alt+T")
     overlay_action.setCheckable(True)
     # Load saved state from config
     auto_show = conf.get("cloze_tools", {}).get("auto_show_overlay", False)

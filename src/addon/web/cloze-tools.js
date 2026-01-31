@@ -8,6 +8,56 @@
   // Regex to match cloze deletions: {{c1::content}} or {{c1::content::hint}}
   const CLOZE_REGEX = /\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}/g
 
+  // ============ UNDO STACK ============
+
+  const undoStack = []
+  const MAX_UNDO = 50
+
+  function saveUndoState(elem) {
+    // Don't push duplicate states
+    if (undoStack.length > 0) {
+      const top = undoStack[undoStack.length - 1]
+      if (top.elem === elem && top.html === elem.innerHTML) return
+    }
+    const sel = window.getSelection()
+    let cursorOffset = -1
+    if (sel && sel.rangeCount > 0) {
+      try {
+        const pre = document.createRange()
+        pre.selectNodeContents(elem)
+        pre.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset)
+        cursorOffset = pre.toString().length
+      } catch (e) { /* ignore */ }
+    }
+    undoStack.push({ elem, html: elem.innerHTML, cursorOffset })
+    if (undoStack.length > MAX_UNDO) undoStack.shift()
+  }
+
+  function undoClozeEdit(event, elem) {
+    if (undoStack.length === 0) return
+    const state = undoStack.pop()
+    state.elem.innerHTML = state.html
+    if (state.cursorOffset >= 0) {
+      placeCursorAtOffset(state.elem, state.cursorOffset)
+    }
+  }
+
+  // Intercept Cmd/Ctrl+Z only when our undo stack has entries
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !e.altKey) {
+      if (undoStack.length > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+        const state = undoStack.pop()
+        state.elem.innerHTML = state.html
+        if (state.cursorOffset >= 0) {
+          placeCursorAtOffset(state.elem, state.cursorOffset)
+        }
+      }
+    }
+  }, true)
+
   /**
    * Get the cursor position within an element's text content
    * Returns the character offset from the start of the element's text
@@ -638,6 +688,222 @@
     elem.innerHTML = newHtml
   }
 
+  /**
+   * Walk forward through HTML from a position, counting text characters.
+   * Returns the HTML position after consuming N text characters.
+   */
+  function walkHtmlForward(html, fromPos, textChars) {
+    let remaining = textChars
+    let i = fromPos
+    while (i < html.length && remaining > 0) {
+      if (html[i] === '<') {
+        while (i < html.length && html[i] !== '>') i++
+        i++
+        continue
+      }
+      if (html[i] === '&') {
+        const semi = html.indexOf(';', i)
+        if (semi !== -1 && semi - i < 10) {
+          remaining--
+          i = semi + 1
+          continue
+        }
+      }
+      remaining--
+      i++
+    }
+    return i
+  }
+
+  /**
+   * Walk backward through HTML from a position, counting text characters.
+   * Returns the HTML position of the Nth text character before fromPos.
+   */
+  function walkHtmlBackward(html, fromPos, textChars) {
+    let remaining = textChars
+    let i = fromPos - 1
+    while (i >= 0 && remaining > 0) {
+      if (html[i] === '>') {
+        while (i >= 0 && html[i] !== '<') i--
+        i--
+        continue
+      }
+      if (html[i] === ';') {
+        let j = i - 1
+        while (j >= Math.max(0, i - 8) && html[j] !== '&') j--
+        if (j >= 0 && html[j] === '&') {
+          remaining--
+          if (remaining === 0) return j
+          i = j - 1
+          continue
+        }
+      }
+      remaining--
+      if (remaining === 0) return i
+      i--
+    }
+    return Math.max(0, i + 1)
+  }
+
+  /**
+   * Show a brief toast message that auto-dismisses.
+   */
+  function showMoveToast(message) {
+    const existing = document.getElementById('efdrc-move-toast')
+    if (existing) existing.remove()
+    const toast = document.createElement('div')
+    toast.id = 'efdrc-move-toast'
+    toast.textContent = message
+    toast.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: #2a2a2a; color: #888; border-radius: 8px; padding: 8px 16px;
+      font-size: 13px; z-index: 99999; box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `
+    document.body.appendChild(toast)
+    setTimeout(() => { if (toast.parentNode) toast.remove() }, 1500)
+  }
+
+  /**
+   * Build a unified cloze list with text positions from textContent
+   * (same coordinate space as getCursorTextOffset / Range.toString)
+   * and HTML positions from innerHTML (for replacement).
+   */
+  function getClozesWithPositions(elem) {
+    const fullText = elem.textContent || ''
+    const html = elem.innerHTML
+
+    // Text positions — same coordinate space as cursor
+    const textClozes = []
+    const textRegex = new RegExp(CLOZE_REGEX.source, 'g')
+    let tm
+    while ((tm = textRegex.exec(fullText)) !== null) {
+      textClozes.push({
+        textStart: tm.index,
+        textEnd: tm.index + tm[0].length,
+        number: parseInt(tm[1], 10),
+        textContent: tm[2],
+        textHint: tm[3] || null
+      })
+    }
+
+    // HTML positions — for innerHTML manipulation
+    const htmlClozes = getAllClozes(elem)
+
+    // If counts match, pair them up (best case)
+    if (textClozes.length === htmlClozes.length) {
+      return textClozes.map((tc, i) => ({
+        textStart: tc.textStart,
+        textEnd: tc.textEnd,
+        number: tc.number,
+        content: htmlClozes[i].content,
+        hint: htmlClozes[i].hint,
+        htmlStart: htmlClozes[i].index,
+        htmlEnd: htmlClozes[i].index + htmlClozes[i].match.length,
+        htmlMatch: htmlClozes[i].match
+      }))
+    }
+
+    // Fallback: use getClozeTextPosition (temp div method) if counts differ
+    return htmlClozes.map(c => {
+      const pos = getClozeTextPosition(elem, c)
+      return {
+        textStart: pos.textStart,
+        textEnd: pos.textEnd,
+        number: c.number,
+        content: c.content,
+        hint: c.hint,
+        htmlStart: c.index,
+        htmlEnd: c.index + c.match.length,
+        htmlMatch: c.match
+      }
+    })
+  }
+
+  /**
+   * Move text into an adjacent cloze.
+   *
+   * Select text that includes part of a cloze + adjacent text outside it.
+   * The outside text is absorbed into that cloze.
+   */
+  function moveIntoCloze(event, elem) {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || selection.toString().length === 0) {
+      showMoveToast('Select text overlapping a cloze')
+      return
+    }
+
+    const html = elem.innerHTML
+    const clozes = getClozesWithPositions(elem)
+    if (clozes.length === 0) {
+      showMoveToast('No clozes in field')
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const pre = document.createRange()
+    pre.selectNodeContents(elem)
+    pre.setEnd(range.startContainer, range.startOffset)
+    const selStart = pre.toString().length
+    const selEnd = selStart + selection.toString().length
+
+    // Find ALL clozes that overlap with selection
+    const overlapping = clozes.filter(c => c.textStart < selEnd && c.textEnd > selStart)
+
+    // Must overlap exactly one cloze
+    if (overlapping.length === 0) {
+      showMoveToast('Selection must overlap a cloze')
+      return
+    }
+    if (overlapping.length > 1) {
+      showMoveToast('Selection overlaps multiple clozes')
+      return
+    }
+
+    const cloze = overlapping[0]
+
+    // Clamp so we don't extend into another cloze
+    let absorbStart = selStart
+    let absorbEnd = selEnd
+    for (const c of clozes) {
+      if (c === cloze) continue
+      if (c.textEnd > absorbStart && c.textEnd <= cloze.textStart) {
+        absorbStart = Math.max(absorbStart, c.textEnd)
+      }
+      if (c.textStart < absorbEnd && c.textStart >= cloze.textEnd) {
+        absorbEnd = Math.min(absorbEnd, c.textStart)
+      }
+    }
+
+    const beforeLen = Math.max(0, cloze.textStart - absorbStart)
+    const afterLen = Math.max(0, absorbEnd - cloze.textEnd)
+    if (beforeLen === 0 && afterLen === 0) {
+      showMoveToast('Selection is entirely inside cloze')
+      return
+    }
+
+    saveUndoState(elem)
+
+    let cutStart = cloze.htmlStart
+    let cutEnd = cloze.htmlEnd
+    let htmlBefore = ''
+    let htmlAfter = ''
+
+    if (beforeLen > 0) {
+      cutStart = walkHtmlBackward(html, cloze.htmlStart, beforeLen)
+      htmlBefore = html.substring(cutStart, cloze.htmlStart)
+    }
+    if (afterLen > 0) {
+      cutEnd = walkHtmlForward(html, cloze.htmlEnd, afterLen)
+      htmlAfter = html.substring(cloze.htmlEnd, cutEnd)
+    }
+
+    const hint = cloze.hint ? `::${cloze.hint}` : ''
+    const newCloze = `{{c${cloze.number}::${htmlBefore}${cloze.content}${htmlAfter}${hint}}}`
+    elem.innerHTML = html.substring(0, cutStart) + newCloze + html.substring(cutEnd)
+    placeCursorAtOffset(elem, absorbStart)
+  }
+
   // ============ CLOZE NAVIGATION ============
 
   /**
@@ -902,6 +1168,10 @@
    */
   function cleanupVisualFeatures(elem) {
     hideClozeOverlay()
+    // Clear suggestions when leaving field
+    if (suggestionsEnabled) {
+      hideSuggestions(elem)
+    }
   }
 
   // ============ ADVANCED EDITING ============
@@ -1209,6 +1479,470 @@
     }
   }
 
+  // ============ SMART FEATURES ============
+
+  let suggestionsEnabled = false
+  let originalFieldHtml = null
+  let suggestionsFieldId = null
+
+  /**
+   * Toggle cloze candidate suggestions
+   * Highlights: bold/italic text, Capitalized Words, numbers, dates
+   */
+  function toggleClozeSuggestions(event, elem) {
+    if (suggestionsEnabled && suggestionsFieldId === elem.getAttribute('data-EFDRCfield')) {
+      // Turn off - restore original HTML
+      hideSuggestions(elem)
+    } else {
+      // Turn on - show suggestions
+      showSuggestions(elem)
+    }
+  }
+
+  function showSuggestions(elem) {
+    // Store original state
+    suggestionsFieldId = elem.getAttribute('data-EFDRCfield')
+    originalFieldHtml = elem.innerHTML
+    suggestionsEnabled = true
+
+    // Get text content and find candidates
+    const html = elem.innerHTML
+
+    // Don't highlight inside existing clozes
+    // Process the HTML to highlight candidates outside of clozes
+    let result = ''
+    let lastIndex = 0
+    const clozeRegex = /\{\{c\d+::.*?(?:::.*?)?\}\}/g
+    let match
+
+    while ((match = clozeRegex.exec(html)) !== null) {
+      // Process text before this cloze
+      const beforeCloze = html.substring(lastIndex, match.index)
+      result += highlightCandidates(beforeCloze)
+      // Keep cloze as-is
+      result += match[0]
+      lastIndex = match.index + match[0].length
+    }
+    // Process remaining text after last cloze
+    result += highlightCandidates(html.substring(lastIndex))
+
+    elem.innerHTML = result
+  }
+
+  function hideSuggestions(elem) {
+    if (originalFieldHtml !== null) {
+      elem.innerHTML = originalFieldHtml
+    }
+    suggestionsEnabled = false
+    originalFieldHtml = null
+    suggestionsFieldId = null
+  }
+
+  function highlightCandidates(text) {
+    // First, highlight content inside bold/italic/underline tags
+    text = text.replace(/(<(?:b|strong|i|em|u)(?:\s[^>]*)?>)(.*?)(<\/(?:b|strong|i|em|u)>)/gi, (match, openTag, content, closeTag) => {
+      // Don't double-highlight if already wrapped
+      if (content.includes('efdrc-suggestion')) return match
+      const plainContent = content.replace(/<[^>]+>/g, '').trim()
+      if (!plainContent) return match
+      return `${openTag}<span class="efdrc-suggestion" style="background: rgba(255, 215, 0, 0.3); border-radius: 2px; cursor: pointer;" data-suggestion-type="formatted">${content}</span>${closeTag}`
+    })
+
+    // Then process remaining text between tags
+    const tagRegex = /<[^>]+>/g
+    let result = ''
+    let lastIndex = 0
+    let match
+
+    while ((match = tagRegex.exec(text)) !== null) {
+      // Process text before this tag
+      const beforeTag = text.substring(lastIndex, match.index)
+      result += highlightTextCandidates(beforeTag)
+      // Keep tag as-is
+      result += match[0]
+      lastIndex = match.index + match[0].length
+    }
+    // Process remaining text
+    result += highlightTextCandidates(text.substring(lastIndex))
+
+    return result
+  }
+
+  function highlightTextCandidates(text) {
+    if (!text.trim()) return text
+
+    // Patterns to highlight (in order of priority)
+    const patterns = [
+      // Dates: various formats
+      { regex: /\b\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}\b/g, type: 'date' },
+      { regex: /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,?\s+\d{4})?\b/gi, type: 'date' },
+      { regex: /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?(?:\s+\d{4})?\b/gi, type: 'date' },
+      // Years
+      { regex: /\b(?:19|20)\d{2}\b/g, type: 'number' },
+      // Numbers with units (expanded)
+      { regex: /\b\d+(?:\.\d+)?(?:\s*)?(?:%|mg|kg|ml|mL|cm|mm|m|km|g|lb|oz|hrs?|mins?|secs?|mmHg|bpm|years?|months?|weeks?|days?|times?)\b/gi, type: 'number' },
+      // Decimal numbers
+      { regex: /\b\d+\.\d+\b/g, type: 'number' },
+      // Standalone numbers (2+ digits)
+      { regex: /\b\d{2,}\b/g, type: 'number' },
+      // Acronyms (2+ caps)
+      { regex: /\b[A-Z]{2,}\b/g, type: 'acronym' },
+      // Capitalized phrases (2+ words)
+      { regex: /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g, type: 'term' },
+      // Single capitalized words (3+ chars, not common words)
+      { regex: /\b[A-Z][a-z]{2,}\b/g, type: 'term' },
+      // Words with mixed case (like iPhone, macOS)
+      { regex: /\b[a-z]+[A-Z][a-zA-Z]*\b/g, type: 'term' },
+      // Hyphenated terms
+      { regex: /\b[A-Za-z]+-[A-Za-z]+(?:-[A-Za-z]+)*\b/g, type: 'term' },
+    ]
+
+    // Track positions to highlight
+    const highlights = []
+
+    for (const pattern of patterns) {
+      let m
+      const regex = new RegExp(pattern.regex.source, pattern.regex.flags)
+      while ((m = regex.exec(text)) !== null) {
+        // Check if this position overlaps with existing highlight
+        const start = m.index
+        const end = start + m[0].length
+        const overlaps = highlights.some(h =>
+          (start >= h.start && start < h.end) || (end > h.start && end <= h.end)
+        )
+        if (!overlaps) {
+          highlights.push({ start, end, text: m[0], type: pattern.type })
+        }
+      }
+    }
+
+    // Sort by position
+    highlights.sort((a, b) => a.start - b.start)
+
+    // Build result with highlights
+    let result = ''
+    let pos = 0
+    for (const h of highlights) {
+      result += text.substring(pos, h.start)
+      result += `<span class="efdrc-suggestion" style="background: rgba(255, 215, 0, 0.3); border-radius: 2px; cursor: pointer;" data-suggestion-type="${h.type}">${h.text}</span>`
+      pos = h.end
+    }
+    result += text.substring(pos)
+
+    return result
+  }
+
+  function showSuggestionsToast(message) {
+    const existing = document.getElementById('efdrc-suggestions-toast')
+    if (existing) existing.remove()
+
+    const toast = document.createElement('div')
+    toast.id = 'efdrc-suggestions-toast'
+    toast.textContent = message
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      z-index: 99999;
+      opacity: 0;
+      transition: opacity 0.2s;
+    `
+    document.body.appendChild(toast)
+
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1'
+      setTimeout(() => {
+        toast.style.opacity = '0'
+        setTimeout(() => toast.remove(), 200)
+      }, 2000)
+    })
+  }
+
+  // ============ COMMAND PALETTE ============
+  //
+  // Focus NEVER leaves the editable field. All typing is captured via a
+  // document-level keydown listener (capture phase) so the field's blur
+  // handler never fires and the editing session stays open.
+
+  let commandPalettePopup = null
+  let commandPaletteField = null
+  let commandPaletteFilter = ''
+  let selectedCommandIndex = 0
+  let paletteKeyHandler = null
+  let paletteClickHandler = null
+  let savedSelectionRange = null
+
+  function getCommands() {
+    const shortcuts = EFDRC.CONF?.cloze_tools?.shortcuts || {}
+    return [
+      { name: 'Remove Cloze', desc: 'Remove cloze at cursor or selection', shortcut: shortcuts.remove_single, action: removeClozeAtCursorOrSelection },
+      { name: 'Remove All Clozes', desc: 'Remove all cloze markup from field', shortcut: shortcuts.remove_all, action: removeAllClozesInField },
+      { name: 'Remove Same Number', desc: 'Remove all clozes with same number', shortcut: shortcuts.remove_same_number, action: removeClozesOfSameNumber },
+      { name: 'Increment Number', desc: 'Increase cloze number by 1', shortcut: shortcuts.increment, action: incrementClozeNumber },
+      { name: 'Decrement Number', desc: 'Decrease cloze number by 1', shortcut: shortcuts.decrement, action: decrementClozeNumber },
+      { name: 'Renumber Cloze', desc: 'Set cloze to specific number (1-9)', shortcut: shortcuts.renumber, action: startRenumberSequence },
+      { name: 'Add Hint', desc: 'Add or edit hint for cloze', shortcut: shortcuts.add_hint, action: addHint },
+      { name: 'Remove Hint', desc: 'Remove hint from cloze', shortcut: shortcuts.remove_hint, action: removeHint },
+      { name: 'Word Count Hint', desc: 'Set hint to word count', shortcut: shortcuts.word_count_hint, action: addWordCountHint },
+      { name: 'Hint from Selection', desc: 'Use selected text as hint', shortcut: shortcuts.hint_from_selection, action: hintFromSelection },
+      { name: 'Split Cloze', desc: 'Split cloze at selection', shortcut: shortcuts.split_cloze, action: splitCloze },
+      { name: 'Merge Clozes', desc: 'Merge same-number clozes', shortcut: shortcuts.merge_clozes, action: mergeClozes },
+      { name: 'Move Out of Cloze', desc: 'Move selection out of cloze', shortcut: shortcuts.move_out_of_cloze, action: moveOutOfCloze },
+      { name: 'Move Into Cloze', desc: 'Expand cloze to include selection', shortcut: shortcuts.move_into_cloze, action: moveIntoCloze },
+      { name: 'Image to Cloze', desc: 'Wrap image in cloze', shortcut: shortcuts.image_to_cloze, action: imageToClose },
+      { name: 'Jump to Next Cloze', desc: 'Move cursor to next cloze', shortcut: shortcuts.jump_next_cloze, action: jumpToNextCloze },
+      { name: 'Jump to Previous Cloze', desc: 'Move cursor to previous cloze', shortcut: shortcuts.jump_prev_cloze, action: jumpToPrevCloze },
+      { name: 'Jump to Beginning', desc: 'Move cursor to start of field', shortcut: shortcuts.jump_to_beginning, action: jumpToBeginning },
+      { name: 'Jump to End', desc: 'Move cursor to end of field', shortcut: shortcuts.jump_to_end, action: jumpToEnd },
+      { name: 'Toggle Overlay', desc: 'Show/hide cloze info overlay', shortcut: shortcuts.toggle_overlay, action: toggleClozeOverlay },
+      { name: 'Copy Cloze Content', desc: 'Copy inner text of cloze', shortcut: shortcuts.copy_cloze_content, action: copyClozeContent },
+      { name: 'Preview Card', desc: 'Preview how card will look', shortcut: shortcuts.preview_card, action: showCardPreview },
+      { name: 'Find & Replace', desc: 'Find/replace in clozes only', shortcut: shortcuts.find_replace, action: showFindReplace },
+      { name: 'Suggest Clozes', desc: 'Highlight potential cloze candidates', shortcut: shortcuts.suggest_clozes, action: toggleClozeSuggestions },
+      { name: 'Replay Question', desc: 'Show front of card', shortcut: shortcuts.replay_question, action: replayQuestion },
+    ]
+  }
+
+  function getFilteredCommands() {
+    const commands = getCommands()
+    const f = commandPaletteFilter.toLowerCase()
+    if (!f) return commands
+    return commands.filter(cmd =>
+      cmd.name.toLowerCase().includes(f) ||
+      cmd.desc.toLowerCase().includes(f)
+    )
+  }
+
+  function renderPalette() {
+    if (!commandPalettePopup) return
+    const searchDisplay = commandPalettePopup.querySelector('#efdrc-palette-search-display')
+    const resultsDiv = commandPalettePopup.querySelector('#efdrc-palette-results')
+    if (!searchDisplay || !resultsDiv) return
+
+    // Update search display
+    if (commandPaletteFilter) {
+      searchDisplay.textContent = commandPaletteFilter
+      searchDisplay.style.color = '#fff'
+    } else {
+      searchDisplay.textContent = 'Type to search commands...'
+      searchDisplay.style.color = '#888'
+    }
+
+    const filtered = getFilteredCommands()
+    if (selectedCommandIndex >= filtered.length) {
+      selectedCommandIndex = Math.max(0, filtered.length - 1)
+    }
+
+    resultsDiv.innerHTML = filtered.map((cmd, i) => `
+      <div class="efdrc-palette-item" data-index="${i}" style="
+        padding: 10px 16px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        text-align: left;
+        background: ${i === selectedCommandIndex ? '#3a3a3a' : 'transparent'};
+      ">
+        <div style="flex: 1; text-align: left;">
+          <div style="font-weight: 500; color: #fff; text-align: left;">${cmd.name}</div>
+          <div style="font-size: 12px; color: #888; margin-top: 2px; text-align: left;">${cmd.desc}</div>
+        </div>
+        ${cmd.shortcut ? `<div style="font-size: 11px; color: #666; background: #333; padding: 3px 8px; border-radius: 4px; white-space: nowrap; margin-left: 12px;">${cmd.shortcut}</div>` : ''}
+      </div>
+    `).join('')
+
+    // Click handlers — use mousedown to prevent field blur
+    resultsDiv.querySelectorAll('.efdrc-palette-item').forEach((item, idx) => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        executeCommand(filtered[idx])
+      })
+      item.addEventListener('mouseenter', () => {
+        selectedCommandIndex = idx
+        const items = resultsDiv.querySelectorAll('.efdrc-palette-item')
+        items.forEach((el, j) => {
+          el.style.background = j === idx ? '#3a3a3a' : 'transparent'
+        })
+      })
+    })
+
+    // Scroll selected into view
+    const selected = resultsDiv.querySelectorAll('.efdrc-palette-item')[selectedCommandIndex]
+    if (selected) selected.scrollIntoView({ block: 'nearest' })
+  }
+
+  function executeCommand(cmd) {
+    const field = commandPaletteField
+    const range = savedSelectionRange
+    hideCommandPalette()
+    if (field && cmd && cmd.action) {
+      // Restore the original selection before running the command
+      if (range) {
+        const sel = window.getSelection()
+        if (sel) {
+          sel.removeAllRanges()
+          sel.addRange(range)
+        }
+      }
+      saveUndoState(field)
+      cmd.action(null, field)
+    }
+  }
+
+  function showCommandPalette(event, elem) {
+    if (commandPalettePopup) {
+      hideCommandPalette()
+      return
+    }
+
+    commandPaletteField = elem
+    commandPaletteFilter = ''
+    selectedCommandIndex = 0
+
+    // Save current selection — focus stays in the field the entire time
+    const sel = window.getSelection()
+    if (sel && sel.rangeCount > 0) {
+      savedSelectionRange = sel.getRangeAt(0).cloneRange()
+    } else {
+      savedSelectionRange = null
+    }
+
+    commandPalettePopup = document.createElement('div')
+    commandPalettePopup.id = 'efdrc-command-palette'
+    commandPalettePopup.style.cssText = `
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2a2a2a;
+      color: #e0e0e0;
+      border-radius: 10px;
+      font-size: 14px;
+      z-index: 99999;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      width: 400px;
+      max-height: 60vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `
+
+    commandPalettePopup.innerHTML = `
+      <div style="padding: 12px;">
+        <div id="efdrc-palette-search-display" style="
+          width: 100%;
+          padding: 10px 12px;
+          border: none;
+          border-radius: 6px;
+          background: #3a3a3a;
+          color: #888;
+          font-size: 14px;
+          box-sizing: border-box;
+          min-height: 38px;
+          text-align: left;
+        ">Type to search commands...</div>
+      </div>
+      <div id="efdrc-palette-results" style="
+        max-height: calc(60vh - 60px);
+        overflow-y: auto;
+        padding-bottom: 8px;
+      "></div>
+    `
+
+    // Prevent any clicks on the palette from stealing field focus
+    commandPalettePopup.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+    })
+
+    document.body.appendChild(commandPalettePopup)
+    renderPalette()
+
+    // Capture ALL keystrokes at document level so they never reach the field
+    paletteKeyHandler = (e) => {
+      // Always prevent the keystroke from reaching the editable field
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+
+      if (e.key === 'Escape') {
+        hideCommandPalette()
+        return
+      }
+
+      if (e.key === 'Enter') {
+        const filtered = getFilteredCommands()
+        if (filtered.length > 0 && selectedCommandIndex < filtered.length) {
+          executeCommand(filtered[selectedCommandIndex])
+        }
+        return
+      }
+
+      if (e.key === 'ArrowDown') {
+        const filtered = getFilteredCommands()
+        selectedCommandIndex = Math.min(selectedCommandIndex + 1, filtered.length - 1)
+        renderPalette()
+        return
+      }
+
+      if (e.key === 'ArrowUp') {
+        selectedCommandIndex = Math.max(selectedCommandIndex - 1, 0)
+        renderPalette()
+        return
+      }
+
+      if (e.key === 'Backspace') {
+        if (commandPaletteFilter.length > 0) {
+          commandPaletteFilter = commandPaletteFilter.slice(0, -1)
+          selectedCommandIndex = 0
+          renderPalette()
+        }
+        return
+      }
+
+      // Printable character — append to filter
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        commandPaletteFilter += e.key
+        selectedCommandIndex = 0
+        renderPalette()
+      }
+    }
+    document.addEventListener('keydown', paletteKeyHandler, true)
+
+    // Close on click outside palette
+    paletteClickHandler = (e) => {
+      if (commandPalettePopup && !commandPalettePopup.contains(e.target)) {
+        hideCommandPalette()
+      }
+    }
+    setTimeout(() => {
+      document.addEventListener('mousedown', paletteClickHandler, true)
+    }, 50)
+  }
+
+  function hideCommandPalette() {
+    if (paletteKeyHandler) {
+      document.removeEventListener('keydown', paletteKeyHandler, true)
+      paletteKeyHandler = null
+    }
+    if (paletteClickHandler) {
+      document.removeEventListener('mousedown', paletteClickHandler, true)
+      paletteClickHandler = null
+    }
+    if (commandPalettePopup) {
+      commandPalettePopup.remove()
+      commandPalettePopup = null
+    }
+    commandPaletteField = null
+    savedSelectionRange = null
+    commandPaletteFilter = ''
+  }
+
   // ============ CARD NAVIGATION ============
 
   /**
@@ -1497,46 +2231,54 @@
     const shortcuts = EFDRC.CONF.cloze_tools?.shortcuts
     if (!shortcuts) return
 
+    // Wrap modifying functions so undo state is saved automatically
+    function withUndo(fn) {
+      return function (event, elem) {
+        saveUndoState(elem)
+        fn(event, elem)
+      }
+    }
+
     if (shortcuts.remove_single) {
-      EFDRC.registerShortcut(shortcuts.remove_single, removeClozeAtCursorOrSelection)
+      EFDRC.registerShortcut(shortcuts.remove_single, withUndo(removeClozeAtCursorOrSelection))
     }
 
     if (shortcuts.remove_all) {
-      EFDRC.registerShortcut(shortcuts.remove_all, removeAllClozesInField)
+      EFDRC.registerShortcut(shortcuts.remove_all, withUndo(removeAllClozesInField))
     }
 
     if (shortcuts.remove_same_number) {
-      EFDRC.registerShortcut(shortcuts.remove_same_number, removeClozesOfSameNumber)
+      EFDRC.registerShortcut(shortcuts.remove_same_number, withUndo(removeClozesOfSameNumber))
     }
 
     // Numbering shortcuts
     if (shortcuts.increment) {
-      EFDRC.registerShortcut(shortcuts.increment, incrementClozeNumber)
+      EFDRC.registerShortcut(shortcuts.increment, withUndo(incrementClozeNumber))
     }
 
     if (shortcuts.decrement) {
-      EFDRC.registerShortcut(shortcuts.decrement, decrementClozeNumber)
+      EFDRC.registerShortcut(shortcuts.decrement, withUndo(decrementClozeNumber))
     }
 
     if (shortcuts.renumber) {
-      EFDRC.registerShortcut(shortcuts.renumber, startRenumberSequence)
+      EFDRC.registerShortcut(shortcuts.renumber, withUndo(startRenumberSequence))
     }
 
     // Hint shortcuts
     if (shortcuts.add_hint) {
-      EFDRC.registerShortcut(shortcuts.add_hint, addHint)
+      EFDRC.registerShortcut(shortcuts.add_hint, withUndo(addHint))
     }
 
     if (shortcuts.remove_hint) {
-      EFDRC.registerShortcut(shortcuts.remove_hint, removeHint)
+      EFDRC.registerShortcut(shortcuts.remove_hint, withUndo(removeHint))
     }
 
     if (shortcuts.word_count_hint) {
-      EFDRC.registerShortcut(shortcuts.word_count_hint, addWordCountHint)
+      EFDRC.registerShortcut(shortcuts.word_count_hint, withUndo(addWordCountHint))
     }
 
     if (shortcuts.hint_from_selection) {
-      EFDRC.registerShortcut(shortcuts.hint_from_selection, hintFromSelection)
+      EFDRC.registerShortcut(shortcuts.hint_from_selection, withUndo(hintFromSelection))
     }
 
     // Card navigation - register both on field and globally
@@ -1547,19 +2289,23 @@
 
     // Structure shortcuts
     if (shortcuts.split_cloze) {
-      EFDRC.registerShortcut(shortcuts.split_cloze, splitCloze)
+      EFDRC.registerShortcut(shortcuts.split_cloze, withUndo(splitCloze))
     }
 
     if (shortcuts.merge_clozes) {
-      EFDRC.registerShortcut(shortcuts.merge_clozes, mergeClozes)
+      EFDRC.registerShortcut(shortcuts.merge_clozes, withUndo(mergeClozes))
     }
 
     if (shortcuts.move_out_of_cloze) {
-      EFDRC.registerShortcut(shortcuts.move_out_of_cloze, moveOutOfCloze)
+      EFDRC.registerShortcut(shortcuts.move_out_of_cloze, withUndo(moveOutOfCloze))
+    }
+
+    if (shortcuts.move_into_cloze) {
+      EFDRC.registerShortcut(shortcuts.move_into_cloze, moveIntoCloze)
     }
 
     if (shortcuts.image_to_cloze) {
-      EFDRC.registerShortcut(shortcuts.image_to_cloze, imageToClose)
+      EFDRC.registerShortcut(shortcuts.image_to_cloze, withUndo(imageToClose))
     }
 
     // Navigation shortcuts
@@ -1594,7 +2340,18 @@
     }
 
     if (shortcuts.find_replace) {
-      EFDRC.registerShortcut(shortcuts.find_replace, showFindReplace)
+      EFDRC.registerShortcut(shortcuts.find_replace, withUndo(showFindReplace))
+    }
+
+    // Smart features
+    if (shortcuts.suggest_clozes) {
+      EFDRC.registerShortcut(shortcuts.suggest_clozes, withUndo(toggleClozeSuggestions))
+    }
+
+    // UI
+    if (shortcuts.command_palette) {
+      EFDRC.registerShortcut(shortcuts.command_palette, showCommandPalette)
+      setupGlobalCommandPalette(shortcuts.command_palette)
     }
   }
 
@@ -1666,6 +2423,25 @@
     }, true)
   }
 
+  function setupGlobalCommandPalette(shortcutStr) {
+    document.addEventListener('keydown', (event) => {
+      // Check for Ctrl+. (or Cmd+. on Mac)
+      const isCtrlOrCmd = event.ctrlKey || event.metaKey
+      const isPeriod = event.key === '.' || event.code === 'Period'
+
+      if (isCtrlOrCmd && isPeriod && !event.shiftKey && !event.altKey) {
+        event.preventDefault()
+        event.stopPropagation()
+        // Find an editable field to use
+        const field = document.querySelector('[data-EFDRCfield][contenteditable="true"]:focus') ||
+                      document.querySelector('[data-EFDRCfield]')
+        if (field) {
+          showCommandPalette(event, field)
+        }
+      }
+    }, true)
+  }
+
   // Listen for number keys during renumber sequence
   document.addEventListener('keydown', (event) => {
     if (renumberPending) {
@@ -1697,6 +2473,7 @@
     splitCloze,
     mergeClozes,
     moveOutOfCloze,
+    moveIntoCloze,
     imageToClose,
     jumpToNextCloze,
     jumpToPrevCloze,
@@ -1710,6 +2487,11 @@
     showCardPreview,
     hideCardPreview,
     showFindReplace,
-    hideFindReplace
+    hideFindReplace,
+    toggleClozeSuggestions,
+    showSuggestions,
+    hideSuggestions,
+    showCommandPalette,
+    hideCommandPalette
   }
 })()

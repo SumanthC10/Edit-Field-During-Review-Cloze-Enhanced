@@ -116,26 +116,84 @@ remove_undo()
 
 
 def initial_tutorial() -> None:
-    tutorial = "<br>".join(
-        [
-            "<center><h3>Edit Field During Review Cloze Enhanced",
-            "How to Use</h3></center>"
-            "<h4>Initial Setup</h4>"
-            "1. Open the add-on config and go to the <i>Fields</i> tab.",
-            "2. For each note type, <i>check</i> the fields you want editable.",
-            "3. Remember to do this whenever you add or modify a note type!",
-            "4. And it's done! Now you can <b>Ctrl + Click</b> on the field content to edit it.",
-            "<h4>Cloze Tools Shortcuts</h4>"
-            "<b>Removal:</b>",
-            "• <b>Cmd+Shift+R</b> - Remove cloze at cursor/selection",
-            "• <b>Cmd+Shift+U</b> - Remove ALL clozes in field",
-            "• <b>Cmd+Shift+Alt+R</b> - Remove clozes with same number",
-            "<b>Numbering:</b>",
-            "• <b>Cmd+Shift+Alt+J</b> - Increment cloze number",
-            "• <b>Cmd+Shift+Alt+K</b> - Decrement cloze number",
-            "• <b>Cmd+Shift+Alt+N</b> - Renumber cloze (then press 1-9)",
-        ]
-    )
+    tutorial = """
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; }
+    h2 { text-align: center; margin-bottom: 5px; }
+    h3 { color: #888; text-align: center; margin-top: 0; font-weight: normal; }
+    h4 { color: #4a9eff; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 5px; }
+    .section { margin-bottom: 15px; }
+    .shortcut { display: inline-block; font-family: monospace; font-weight: bold; }
+    ul { margin: 5px 0; padding-left: 20px; }
+    li { margin: 4px 0; }
+</style>
+
+<h2>Edit Field During Review Cloze Enhanced</h2>
+<h3>Quick Start Guide</h3>
+
+<h4>Initial Setup</h4>
+<div class="section">
+1. Open the add-on config and go to the <b>Fields</b> tab<br>
+2. For each note type, check the fields you want editable<br>
+3. Done! Now <span class="shortcut">Ctrl + Click</span> on any field to edit it
+</div>
+
+<h4>Command Palette</h4>
+<div class="section">
+<span class="shortcut">Ctrl+.</span> - Open searchable command palette with ALL actions
+</div>
+
+<h4>Cloze Removal</h4>
+<ul>
+<li><span class="shortcut">Ctrl+Shift+R</span> - Remove cloze at cursor/selection</li>
+<li><span class="shortcut">Ctrl+Shift+U</span> - Remove ALL clozes in field</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+R</span> - Remove clozes with same number</li>
+</ul>
+
+<h4>Cloze Numbering</h4>
+<ul>
+<li><span class="shortcut">Ctrl+Shift+Alt+K</span> - Increment number</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+J</span> - Decrement number</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+N</span> - Renumber (then press 1-9)</li>
+</ul>
+
+<h4>Hints</h4>
+<ul>
+<li><span class="shortcut">Ctrl+Shift+L</span> - Add/edit hint</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+L</span> - Remove hint</li>
+<li><span class="shortcut">Ctrl+Shift+W</span> - Word count hint</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+S</span> - Use selection as hint</li>
+</ul>
+
+<h4>Cloze Structure</h4>
+<ul>
+<li><span class="shortcut">Ctrl+Shift+S</span> - Split cloze at selection</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+M</span> - Merge same-number clozes</li>
+<li><span class="shortcut">Ctrl+Shift+O</span> - Move selection out of cloze</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+O</span> - Move selection into cloze</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+I</span> - Convert image to cloze</li>
+</ul>
+
+<h4>Navigation</h4>
+<ul>
+<li><span class="shortcut">Ctrl+]</span> - Jump to next cloze</li>
+<li><span class="shortcut">Ctrl+[</span> - Jump to previous cloze</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+F</span> - Replay question (show front)</li>
+</ul>
+
+<h4>Tools</h4>
+<ul>
+<li><span class="shortcut">Ctrl+Shift+Alt+T</span> - Toggle cloze info overlay</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+Y</span> - Copy cloze content</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+P</span> - Preview card</li>
+<li><span class="shortcut">Ctrl+Shift+Alt+G</span> - Find & replace in clozes</li>
+<li><span class="shortcut">Ctrl+Shift+G</span> - Suggest cloze candidates</li>
+</ul>
+
+<p style="text-align: center; color: #888; margin-top: 20px;">
+Tip: Use <span class="shortcut">Ctrl+.</span> to search all commands!
+</p>
+"""
     showText(tutorial, type="html", title="Edit Field During Review Cloze Enhanced")
 
 
@@ -147,7 +205,7 @@ version_string = os.environ.get("EFDRC_VERSION")
 if not version_string:
     addon_dir = mw.addonManager.addonFromModule(__name__)
     meta = mw.addonManager.addonMeta(addon_dir)
-    version_string = meta["human_version"]
+    version_string = meta.get("human_version", "6.23")
 
 conf["version.major"] = int(version_string.split(".")[0])
 conf["version.minor"] = int(version_string.split(".")[1])
