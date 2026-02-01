@@ -128,7 +128,7 @@ def initial_tutorial() -> None:
     li { margin: 4px 0; }
 </style>
 
-<h2>Edit Field During Review Cloze Enhanced</h2>
+<h2>Edit Field During Review - Cloze (Enhanced)</h2>
 <h3>Quick Start Guide</h3>
 
 <h4>Initial Setup</h4>
@@ -194,7 +194,7 @@ def initial_tutorial() -> None:
 Tip: Use <span class="shortcut">Ctrl+.</span> to search all commands!
 </p>
 """
-    showText(tutorial, type="html", title="Edit Field During Review Cloze Enhanced")
+    showText(tutorial, type="html", title="Edit Field During Review - Cloze (Enhanced)")
 
 
 if version == "-1.-1":

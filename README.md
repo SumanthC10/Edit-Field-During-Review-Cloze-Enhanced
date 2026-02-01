@@ -1,4 +1,4 @@
-# Edit Field During Review - Cloze Enhanced
+# Edit Field During Review - Cloze (Enhanced)
 
 An Anki add-on that lets you edit fields directly during review, with powerful cloze manipulation tools.
 

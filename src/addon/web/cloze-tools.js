@@ -275,6 +275,9 @@
     const selection = window.getSelection()
     if (!selection) return
 
+    // Ensure element has focus first
+    elem.focus()
+
     const range = document.createRange()
     let currentOffset = 0
     let found = false
@@ -617,20 +620,22 @@
       // Selected entire content - just remove cloze markup
       newHtml = before + selectedText + after
     } else if (atStart) {
-      // At start - move before cloze
-      const remaining = plainContent.substring(selEnd).trim()
-      newHtml = before + selectedText + ' ' + `{{c${cloze.number}::${remaining}${hint}}}` + after
+      // At start - move before cloze, preserve exact spacing
+      const remaining = plainContent.substring(selEnd)
+      // If remaining starts with space, keep it in cloze; selected text goes before as-is
+      newHtml = before + selectedText + `{{c${cloze.number}::${remaining}${hint}}}` + after
     } else if (atEnd) {
-      // At end - move after cloze
-      const remaining = plainContent.substring(0, selStart).trim()
-      newHtml = before + `{{c${cloze.number}::${remaining}${hint}}}` + ' ' + selectedText + after
+      // At end - move after cloze, preserve exact spacing
+      const remaining = plainContent.substring(0, selStart)
+      // If remaining ends with space, keep it in cloze; selected text goes after as-is
+      newHtml = before + `{{c${cloze.number}::${remaining}${hint}}}` + selectedText + after
     } else {
-      // Middle - split into three parts
-      const beforeSel = plainContent.substring(0, selStart).trim()
-      const afterSel = plainContent.substring(selEnd).trim()
+      // Middle - split into three parts, preserve exact spacing
+      const beforeSel = plainContent.substring(0, selStart)
+      const afterSel = plainContent.substring(selEnd)
       newHtml = before +
-        `{{c${cloze.number}::${beforeSel}${hint}}}` + ' ' +
-        selectedText + ' ' +
+        `{{c${cloze.number}::${beforeSel}${hint}}}` +
+        selectedText +
         `{{c${cloze.number}::${afterSel}${hint}}}` + after
     }
 
@@ -1250,7 +1255,10 @@
     const html = elem.innerHTML
     const allClozes = getAllClozes(elem)
 
-    if (allClozes.length === 0) return
+    if (allClozes.length === 0) {
+      showToast('No clozes found in field')
+      return
+    }
 
     // Find unique cloze numbers
     const clozeNums = [...new Set(allClozes.map(c => c.number))].sort((a, b) => a - b)
@@ -2135,11 +2143,17 @@
 
     const html = elem.innerHTML
 
-    // Get current cloze at the stored index
+    // Get current cloze - try index first, then fallback to finding by number
     const allClozes = getAllClozes(elem)
-    const currentCloze = allClozes[hintPreviewClozeIndex]
+    let currentCloze = allClozes[hintPreviewClozeIndex]
+
+    // Fallback: find by cloze number if index lookup failed
+    if (!currentCloze && hintPreviewClozeNumber !== null) {
+      currentCloze = allClozes.find(c => c.number === hintPreviewClozeNumber)
+    }
 
     if (!currentCloze) {
+      // Still no cloze found - field might have no clozes anymore
       hideHintPreview()
       return
     }
@@ -2191,11 +2205,25 @@
    */
   function addHint(event, elem) {
     const cloze = getClozeAtCursor(elem)
-    if (!cloze) return
+    if (!cloze) {
+      showToast('Place cursor inside a cloze')
+      return
+    }
 
-    // Find cloze index
+    // Find cloze index - use array position, not HTML index comparison
     const allClozes = getAllClozes(elem)
-    const clozeIndex = allClozes.findIndex(c => c.index === cloze.index)
+    let clozeIndex = -1
+    for (let i = 0; i < allClozes.length; i++) {
+      if (allClozes[i].index === cloze.index) {
+        clozeIndex = i
+        break
+      }
+    }
+    if (clozeIndex === -1) {
+      // Fallback: find by number and content match
+      clozeIndex = allClozes.findIndex(c => c.number === cloze.number && c.content === cloze.content)
+    }
+    if (clozeIndex === -1) clozeIndex = 0 // Last resort fallback
 
     const html = elem.innerHTML
 
@@ -2214,8 +2242,9 @@
     const hintStartPos = cloze.textStart + `{{c${cloze.number}::`.length + stripHtml(cloze.content).length + '::'.length
     const hintEndPos = hintStartPos + (cloze.hint ? cloze.hint.length : 0)
 
-    // Place cursor at hint position
+    // Place cursor at hint position and ensure focus
     placeCursorAtOffset(elem, hintEndPos)
+    elem.focus()
 
     // Show floating preview
     showHintPreview(elem, cloze, clozeIndex)
